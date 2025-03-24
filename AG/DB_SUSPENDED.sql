@@ -20,10 +20,10 @@ BEGIN
     
     BEGIN TRY
         EXEC (@sql);
-        PRINT '✅ Database [' + @db_name + '] resumida com sucesso.';
+        PRINT ' Database [' + @db_name + '] resumida com sucesso.';
     END TRY
     BEGIN CATCH
-        PRINT '❌ Erro ao resumir [' + @db_name + ']: ' + ERROR_MESSAGE();
+        PRINT ' Erro ao resumir [' + @db_name + ']: ' + ERROR_MESSAGE();
     END CATCH;
 
     FETCH NEXT FROM db_cursor INTO @db_name;
