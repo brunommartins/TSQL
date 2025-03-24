@@ -63,12 +63,12 @@ IF EXISTS (
 )
 BEGIN
     DECLARE @sql NVARCHAR(500) = 'ALTER DATABASE [DBPIMSGPRO_OPE] SET HADR RESUME';
-    PRINT '⚠️  A base está suspensa. Comando sugerido:';
+    PRINT 'A base está suspensa. Comando sugerido:';
     PRINT @sql;
 END
 ELSE
 BEGIN
-    PRINT '✅ A base não está suspensa.';
+    PRINT 'A base não está suspensa.';
 END
 
 -- 6. Verifica se o banco está realmente conectado ao AG
