@@ -12,7 +12,6 @@ Item	Verificação
 
 -- ================================
 -- CHECKLIST DIAGNÓSTICO AG
--- Banco: DBPIMSGPRO_OPE
 -- ================================
 
 -- 1. Verifica o status da base no AG
