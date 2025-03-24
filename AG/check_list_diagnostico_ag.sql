@@ -26,7 +26,7 @@ SELECT
     drs.last_hardened_time
 FROM sys.dm_hadr_database_replica_states drs
 JOIN sys.databases d ON d.database_id = drs.database_id
-WHERE d.name = 'DBPIMSGPRO_OPE';
+WHERE d.name = 'dbname'; --alterar o nome da base 
 
 -- 2. Verifica se a réplica atual está como primária ou secundária
 PRINT '--- 2. RÉPLICA ATUAL ---';
@@ -58,7 +58,7 @@ IF EXISTS (
     SELECT 1
     FROM sys.dm_hadr_database_replica_states drs
     JOIN sys.databases d ON d.database_id = drs.database_id
-    WHERE d.name = 'dbname'
+    WHERE d.name = 'dbname' --alterar o nome da base 
       AND drs.is_suspended = 1
 )
 BEGIN
@@ -80,4 +80,4 @@ SELECT
 FROM sys.databases d
 JOIN sys.dm_hadr_database_replica_states drs ON d.database_id = drs.database_id
 JOIN sys.dm_hadr_database_replica_cluster_states cs ON drs.group_database_id = cs.group_database_id
-WHERE d.name = 'dbname';
+WHERE d.name = 'dbname'; --alterar o nome da base 
