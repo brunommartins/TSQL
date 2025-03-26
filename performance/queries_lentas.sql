@@ -1,3 +1,51 @@
+-- lista as queries lentas em tempo de execução com tempo maior que 5s
+SELECT
+    s.host_name,
+    r.session_id,
+    r.status,
+    r.start_time,
+    r.cpu_time,
+    r.total_elapsed_time,
+    r.logical_reads,
+    r.writes,
+    r.command,
+    s.host_name,
+    s.login_name,
+    t.text AS sql_text
+FROM
+    sys.dm_exec_requests r
+JOIN
+    sys.dm_exec_sessions s ON r.session_id = s.session_id
+CROSS APPLY
+    sys.dm_exec_sql_text(r.sql_handle) t
+WHERE
+    r.status <> 'background'
+    AND r.total_elapsed_time > 5000 -- milissegundos
+ORDER BY
+    r.total_elapsed_time DESC;
+
+
+--lista bloqueios 
+	SELECT
+    r.session_id,
+    r.status,
+    r.blocking_session_id,
+    r.wait_type,
+    r.wait_time,
+    r.wait_resource,
+    r.command,
+    r.cpu_time,
+    r.total_elapsed_time,
+    s.login_name,
+    s.host_name,
+    s.program_name,
+    t.text AS sql_text
+FROM sys.dm_exec_requests r
+JOIN sys.dm_exec_sessions s ON r.session_id = s.session_id
+CROSS APPLY sys.dm_exec_sql_text(r.sql_handle) t
+WHERE r.blocking_session_id <> 0
+ORDER BY r.blocking_session_id;
+
 
 
 
