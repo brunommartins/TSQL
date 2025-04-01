@@ -1,27 +1,49 @@
-# TSQL Scripts - SQL Server Troubleshooting
+# 🛠️ TSQL Scripts para SQL Server - Troubleshooting
 
-Este repositório contém uma coleção de scripts T-SQL para diagnóstico, análise e resolução de problemas em servidores SQL Server.
+Este repositório contém uma coleção de scripts T-SQL desenvolvidos para auxiliar na identificação e solução de problemas comuns em ambientes SQL Server.
 
-## 📌 Objetivos
+## 🎯 Objetivos
 
-- Identificar queries lentas
-- Monitorar bloqueios e deadlocks
-- Verificar estatísticas de indexação
-- Auditar atividades críticas
+- Monitorar desempenho de consultas
+- Verificar bloqueios, deadlocks e sessões inativas
+- Consultar estatísticas de índices e tabelas
+- Automatizar tarefas administrativas
 
-## 📂 Organização
+## 📁 Estrutura
 
-- `Monitoramento/`: Scripts para acompanhar performance e utilização
-- `Diagnostico/`: Scripts para análise de problemas
-- `Utilitarios/`: Scripts para tarefas administrativas úteis
+- `Diagnostico/`: Scripts voltados para investigação de performance e problemas
+- `Monitoramento/`: Scripts de acompanhamento em tempo real ou periódicos
+- `Utilitarios/`: Scripts auxiliares úteis no dia a dia do DBA
 
-## ▶️ Como usar
+## ▶️ Como utilizar
 
-1. Escolha o script conforme o tipo de problema.
-2. Execute no Management Studio com permissões adequadas.
-3. Analise os resultados conforme a necessidade.
+1. Faça o clone do repositório:
+   ```bash
+   git clone https://github.com/brunommartins/TSQL.git
 
-## ❗ Requisitos
+Escolha o script de acordo com o tipo de problema que você está enfrentando.
 
-- SQL Server 2016+
-- Permissões de leitura nas views de sistema
+Execute no SQL Server Management Studio com permissões suficientes (preferencialmente sysadmin).
+
+Analise os resultados e aja conforme a necessidade.
+
+📋 Requisitos
+SQL Server 2016 ou superior
+
+Permissões de leitura nas DMV’s e objetos de sistema
+
+📌 Exemplos
+
+-- Top 10 queries com maior tempo de CPU médio
+SELECT TOP 10
+    total_worker_time / execution_count AS AvgCPUTime,
+    execution_count,
+    query_hash
+FROM sys.dm_exec_query_stats
+ORDER BY AvgCPUTime DESC
+
+
+🤝 Contribuições
+
+Contribuições são bem-vindas! Veja mais em CONTRIBUTING.md.
+
