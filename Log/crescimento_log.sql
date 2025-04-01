@@ -41,7 +41,6 @@ checkpoint
 
 
 /*
---antes de executar lembrar que este backup deve ser rodado no node do CETRE
 declare @cleanupHours int = (case when DATEPART(HOUR, getdate()) between 12 and 14 then 336 else null end);
 EXECUTE db_Dba.dbo.DatabaseBackup
 @Databases = 'dbname',  --alterar o nome da base de dados
