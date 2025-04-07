@@ -1,9 +1,10 @@
+
 # Script: AtualizaRoutingList.ps1
 # Descrição: Atualiza dinamicamente as READ_ONLY_ROUTING_LIST com base nas réplicas em modo síncrono
 
 # Solicita ao usuário o nome do servidor e da instância onde será feita a verificação inicial
 $Servidor = Read-Host "Informe o nome do servidor (ex: servidor)"
-$Instancia = Read-Host "Informe o nome da instância (ex: INST)"
+$Instancia = Read-Host "Informe o nome da instância (ex: inst)"
 $PrimaryCheckInstance = "$Servidor\$Instancia"
 
 # Valida conexão com a instância
@@ -95,4 +96,20 @@ foreach ($replica in $syncReplicas) {
 
     $tsql = @"
 ALTER AVAILABILITY GROUP [$AvailabilityGroup]
-MODIFY RE
+MODIFY REPLICA ON
+N'$replicaName\$Instancia' WITH
+(PRIMARY_ROLE (READ_ONLY_ROUTING_LIST=(($routingListText),('$replicaName\$Instancia'))));
+"@
+
+    Write-Output "`n[INFO] Atualizando routing list para $replicaName"
+    Write-Output "[DEBUG] Comando T-SQL:"
+    Write-Output $tsql
+
+    try {
+        Invoke-Sqlcmd -Query $tsql -ServerInstance $Primary -ErrorAction Stop
+        Write-Output "[SUCCESS] Routing list atualizada com sucesso para $replicaName"
+    }
+    catch {
+        Write-Output "[ERROR] Falha ao atualizar routing list para $replicaName: $_"
+    }
+}
