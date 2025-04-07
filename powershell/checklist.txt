@@ -1,0 +1,58 @@
+# Caminho do arquivo que deu erro
+$driveLetter = "F:"
+$dataFilePath = "F:\MSSQL\DADOS\DBAGVM000.mdf"
+$sqlInstance = "NOME_DA_INSTANCIA"  # Ex: "SQLSERVER01" ou "MSSQLSERVER"
+
+Write-Host "==== CHECKLIST DE DIAGNÓSTICO – ERRO 21 (DEVICE NOT READY) ====" -ForegroundColor Cyan
+
+# 1. Verificar se a unidade está acessível
+Write-Host "`n[1] Verificando se a unidade $driveLetter está acessível..." -ForegroundColor Yellow
+if (Test-Path $driveLetter) {
+    Write-Host "✅ Unidade $driveLetter acessível." -ForegroundColor Green
+} else {
+    Write-Host "❌ Unidade $driveLetter não está acessível. Verifique o armazenamento físico ou conexão SAN/iSCSI." -ForegroundColor Red
+}
+
+# 2. Verificar se o arquivo do MDF existe
+Write-Host "`n[2] Verificando se o arquivo MDF está acessível..." -ForegroundColor Yellow
+if (Test-Path $dataFilePath) {
+    Write-Host "✅ Arquivo encontrado: $dataFilePath" -ForegroundColor Green
+} else {
+    Write-Host "❌ Arquivo não encontrado: $dataFilePath" -ForegroundColor Red
+}
+
+# 3. Verificar espaço livre na unidade
+Write-Host "`n[3] Verificando espaço livre na unidade $driveLetter..." -ForegroundColor Yellow
+$disk = Get-PSDrive | Where-Object { $_.Name -eq $driveLetter.TrimEnd(":") }
+if ($disk) {
+    Write-Host ("Espaço livre: {0:N2} GB / Total: {1:N2} GB" -f ($disk.Free/1GB), ($disk.Used + $disk.Free)/1GB) -ForegroundColor Green
+} else {
+    Write-Host "❌ Não foi possível obter informações de disco." -ForegroundColor Red
+}
+
+# 4. Buscar eventos de erro no Event Viewer relacionados a disco
+Write-Host "`n[4] Buscando eventos recentes de erro de disco no Event Viewer..." -ForegroundColor Yellow
+$events = Get-WinEvent -LogName System | Where-Object {
+    $_.Message -match "disk" -and $_.LevelDisplayName -eq "Error"
+} | Select-Object -First 5
+
+if ($events) {
+    Write-Host "⚠️ Foram encontrados os seguintes eventos de erro:" -ForegroundColor Magenta
+    $events | Format-Table TimeCreated, Id, Message -AutoSize
+} else {
+    Write-Host "✅ Nenhum erro de disco encontrado nos últimos eventos." -ForegroundColor Green
+}
+
+# 5. Gerar script para execução do DBCC CHECKDB
+Write-Host "`n[5] Gerando script T-SQL para checagem da integridade do banco..." -ForegroundColor Yellow
+$tsql = @"
+USE master;
+GO
+-- Substitua NOME_DO_BANCO pelo nome real
+DBCC CHECKDB('NOME_DO_BANCO') WITH NO_INFOMSGS, ALL_ERRORMSGS;
+GO
+"@
+$tsql | Out-File -FilePath "$env:USERPROFILE\Desktop\DBCC_CHECKDB.sql" -Encoding UTF8
+Write-Host "📄 Script gerado: '$env:USERPROFILE\Desktop\DBCC_CHECKDB.sql'" -ForegroundColor Green
+
+Write-Host "`nChecklist concluído. Execute o script de DBCC assim que o disco estiver acessível." -ForegroundColor Cyan
