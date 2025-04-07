@@ -1,0 +1,26 @@
+Install-Module -Name SqlServer -Scope CurrentUser
+
+
+# Lista de servidores
+$servidores = @(
+    "SQLSERVER01\INSTANCIA",
+    "SQLSERVER02",
+    "SQLSERVER03\INSTANCIA"
+)
+
+# Comando T-SQL que você quer executar
+$comandoTSQL = @"
+SELECT @@SERVERNAME AS NomeServidor, GETDATE() AS DataAtual
+"@
+
+# Loop para cada servidor
+foreach ($servidor in $servidores) {
+    Write-Host "`nExecutando no servidor: $servidor" -ForegroundColor Cyan
+    try {
+        $resultado = Invoke-Sqlcmd -ServerInstance $servidor -Query $comandoTSQL -ErrorAction Stop
+        $resultado | Format-Table -AutoSize
+    }
+    catch {
+        Write-Warning "Erro ao executar no servidor $servidor: $_"
+    }
+}
