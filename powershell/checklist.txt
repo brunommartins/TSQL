@@ -1,7 +1,8 @@
-# Caminho do arquivo que deu erro
+# === VARIÁVEIS ===
 $driveLetter = "F:"
 $dataFilePath = "F:\MSSQL\DADOS\DBAGVM000.mdf"
-$sqlInstance = "NOME_DA_INSTANCIA"  # Ex: "SQLSERVER01" ou "MSSQLSERVER"
+$sqlInstance = "NOME_DA_INSTANCIA"    # Ex: "SQLSERVER01" ou "MSSQLSERVER"
+$databaseName = "NOME_DO_BANCO"       # Ex: "DBAGVM000"
 
 Write-Host "==== CHECKLIST DE DIAGNÓSTICO – ERRO 21 (DEVICE NOT READY) ====" -ForegroundColor Cyan
 
@@ -21,13 +22,15 @@ if (Test-Path $dataFilePath) {
     Write-Host "❌ Arquivo não encontrado: $dataFilePath" -ForegroundColor Red
 }
 
-# 3. Verificar espaço livre na unidade
+# 3. Verificar espaço livre na unidade (corrigido)
 Write-Host "`n[3] Verificando espaço livre na unidade $driveLetter..." -ForegroundColor Yellow
-$disk = Get-PSDrive | Where-Object { $_.Name -eq $driveLetter.TrimEnd(":") }
-if ($disk) {
-    Write-Host ("Espaço livre: {0:N2} GB / Total: {1:N2} GB" -f ($disk.Free/1GB), ($disk.Used + $disk.Free)/1GB) -ForegroundColor Green
+$volume = Get-CimInstance -ClassName Win32_LogicalDisk -Filter "DeviceID='$driveLetter'"
+if ($volume) {
+    $totalGB = [math]::Round($volume.Size / 1GB, 2)
+    $freeGB = [math]::Round($volume.FreeSpace / 1GB, 2)
+    Write-Host "Espaço livre: $freeGB GB / Total: $totalGB GB" -ForegroundColor Green
 } else {
-    Write-Host "❌ Não foi possível obter informações de disco." -ForegroundColor Red
+    Write-Host "❌ Não foi possível obter informações detalhadas de volume via CIM." -ForegroundColor Red
 }
 
 # 4. Buscar eventos de erro no Event Viewer relacionados a disco
@@ -43,16 +46,21 @@ if ($events) {
     Write-Host "✅ Nenhum erro de disco encontrado nos últimos eventos." -ForegroundColor Green
 }
 
-# 5. Gerar script para execução do DBCC CHECKDB
-Write-Host "`n[5] Gerando script T-SQL para checagem da integridade do banco..." -ForegroundColor Yellow
-$tsql = @"
-USE master;
-GO
--- Substitua NOME_DO_BANCO pelo nome real
-DBCC CHECKDB('NOME_DO_BANCO') WITH NO_INFOMSGS, ALL_ERRORMSGS;
-GO
-"@
-$tsql | Out-File -FilePath "$env:USERPROFILE\Desktop\DBCC_CHECKDB.sql" -Encoding UTF8
-Write-Host "📄 Script gerado: '$env:USERPROFILE\Desktop\DBCC_CHECKDB.sql'" -ForegroundColor Green
+# 5. Rodar DBCC CHECKDB automaticamente (se possível)
+Write-Host "`n[5] Executando DBCC CHECKDB no banco $databaseName..." -ForegroundColor Yellow
+try {
+    $query = "DBCC CHECKDB('$databaseName') WITH NO_INFOMSGS, ALL_ERRORMSGS;"
+    $result = Invoke-Sqlcmd -ServerInstance $sqlInstance -Query $query -ErrorAction Stop
 
-Write-Host "`nChecklist concluído. Execute o script de DBCC assim que o disco estiver acessível." -ForegroundColor Cyan
+    if ($result) {
+        Write-Host "`n⚠️ Problemas encontrados no banco:" -ForegroundColor Red
+        $result | Format-Table -AutoSize
+    } else {
+        Write-Host "✅ Nenhum problema de integridade encontrado no banco." -ForegroundColor Green
+    }
+}
+catch {
+    Write-Host "❌ Erro ao executar DBCC CHECKDB. Motivo: $($_.Exception.Message)" -ForegroundColor Red
+}
+
+Write-Host "`nChecklist concluído." -ForegroundColor Cyan
