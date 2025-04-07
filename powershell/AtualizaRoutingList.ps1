@@ -3,8 +3,8 @@
 # Descrição: Atualiza dinamicamente as READ_ONLY_ROUTING_LIST com base nas réplicas em modo síncrono
 
 # Solicita ao usuário o nome do servidor e da instância onde será feita a verificação inicial
-$Servidor = Read-Host "Informe o nome do servidor (ex: SBCDF2EE)"
-$Instancia = Read-Host "Informe o nome da instância (ex: IPIDICPRO)"
+$Servidor = Read-Host "Informe o nome do servidor (ex: SERVIDOR)"
+$Instancia = Read-Host "Informe o nome da instância (ex: INST)"
 $PrimaryCheckInstance = "$Servidor\$Instancia"
 
 # Valida conexão com a instância
