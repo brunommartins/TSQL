@@ -1,0 +1,114 @@
+
+# Script: AtualizaRoutingList.ps1
+# Descrição: Atualiza dinamicamente as READ_ONLY_ROUTING_LIST com base nas réplicas em modo síncrono
+
+# Solicita ao usuário o nome do servidor e da instância onde será feita a verificação inicial
+$Servidor = Read-Host "Informe o nome do servidor (ex: SBCDF2EE)"
+$Instancia = Read-Host "Informe o nome da instância (ex: IPIDICPRO)"
+$PrimaryCheckInstance = "$Servidor\$Instancia"
+
+# Valida conexão com a instância
+try {
+    Write-Output "`n[INFO] Testando conexão com $PrimaryCheckInstance..."
+    $testQuery = "SELECT 1 AS Conexao_OK"
+    $testResult = Invoke-Sqlcmd -Query $testQuery -ServerInstance $PrimaryCheckInstance -ErrorAction Stop
+    Write-Output "[SUCCESS] Conexão com $PrimaryCheckInstance realizada com sucesso.`n"
+}
+catch {
+    Write-Output "[ERROR] Não foi possível conectar-se à instância $PrimaryCheckInstance. Verifique o nome ou a conectividade."
+    exit
+}
+
+# Função para detectar o nó primário atual
+function Get-PrimaryReplica {
+    param([string]$instance)
+    $query = @"
+SELECT r.replica_server_name
+FROM sys.dm_hadr_availability_group_states ags
+JOIN sys.availability_groups ag ON ag.group_id = ags.group_id
+JOIN sys.availability_replicas r ON ag.group_id = r.group_id
+JOIN sys.dm_hadr_availability_replica_states rs ON r.replica_id = rs.replica_id
+WHERE rs.role_desc = 'PRIMARY'
+"@
+    $result = Invoke-Sqlcmd -Query $query -ServerInstance $instance
+    return $result.replica_server_name
+}
+
+# Função para listar e selecionar o AG
+function Select-AvailabilityGroup {
+    param([string]$instance)
+    $query = "SELECT name FROM sys.availability_groups"
+    $result = Invoke-Sqlcmd -Query $query -ServerInstance $instance
+    if ($result.Count -eq 0) {
+        Write-Output "[WARN] Nenhum Availability Group encontrado na instância especificada."
+        exit
+    }
+
+    Write-Output "`n[INFO] Availability Groups disponíveis:"
+    $i = 1
+    foreach ($ag in $result) {
+        Write-Output "[$i] $($ag.name)"
+        $i++
+    }
+
+    $selection = Read-Host "Informe o número do Availability Group desejado"
+    return $result[$selection - 1].name
+}
+
+# Detecta o primário
+$Primary = Get-PrimaryReplica -instance $PrimaryCheckInstance
+Write-Output "`n[INFO] Nó primário atual detectado: $Primary"
+
+# Usuário escolhe o AG
+$AvailabilityGroup = Select-AvailabilityGroup -instance $Primary
+Write-Output "[INFO] Availability Group selecionado: $AvailabilityGroup"
+
+# Query para pegar réplicas em modo síncrono
+$replicaQuery = @"
+SELECT 
+    ar.replica_server_name,
+    ar.availability_mode_desc,
+    ars.role_desc
+FROM 
+    sys.availability_replicas ar
+JOIN 
+    sys.dm_hadr_availability_replica_states ars 
+    ON ar.replica_id = ars.replica_id
+WHERE 
+    ars.role_desc IN ('PRIMARY', 'SECONDARY')
+    AND ar.availability_mode_desc = 'SYNCHRONOUS_COMMIT'
+"@
+
+Write-Output "[INFO] Consultando réplicas sincronizadas..."
+$replicas = Invoke-Sqlcmd -Query $replicaQuery -ServerInstance $Primary
+$syncReplicas = $replicas | Sort-Object replica_server_name
+
+if ($syncReplicas.Count -eq 0) {
+    Write-Output "[WARN] Nenhuma réplica síncrona encontrada. Encerrando script."
+    exit
+}
+
+foreach ($replica in $syncReplicas) {
+    $replicaName = $replica.replica_server_name
+    $routingList = $syncReplicas | Where-Object { $_.replica_server_name -ne $replicaName } | ForEach-Object { "'$($_.replica_server_name)\$Instancia'" }
+    $routingListText = $routingList -join ","
+
+    $tsql = @"
+ALTER AVAILABILITY GROUP [$AvailabilityGroup]
+MODIFY REPLICA ON
+N'$replicaName\$Instancia' WITH
+(PRIMARY_ROLE (READ_ONLY_ROUTING_LIST=(($routingListText),('$replicaName\$Instancia'))));
+"@
+
+    Write-Output "`n[INFO] Atualizando routing list para $replicaName"
+    Write-Output "[DEBUG] Comando T-SQL:"
+    Write-Output $tsql
+
+    try {
+        Invoke-Sqlcmd -Query $tsql -ServerInstance $Primary -ErrorAction Stop
+        Write-Output "[SUCCESS] Routing list atualizada com sucesso para $replicaName"
+    }
+    catch {
+        Write-Output "[ERROR] Falha ao atualizar routing list para $replicaName: $_"
+    }
+}
