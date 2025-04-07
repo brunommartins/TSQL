@@ -1,9 +1,8 @@
-
 # Script: AtualizaRoutingList.ps1
 # Descrição: Atualiza dinamicamente as READ_ONLY_ROUTING_LIST com base nas réplicas em modo síncrono
 
 # Solicita ao usuário o nome do servidor e da instância onde será feita a verificação inicial
-$Servidor = Read-Host "Informe o nome do servidor (ex: SERVIDOR)"
+$Servidor = Read-Host "Informe o nome do servidor (ex: servidor)"
 $Instancia = Read-Host "Informe o nome da instância (ex: INST)"
 $PrimaryCheckInstance = "$Servidor\$Instancia"
 
@@ -59,8 +58,9 @@ function Select-AvailabilityGroup {
 $Primary = Get-PrimaryReplica -instance $PrimaryCheckInstance
 Write-Output "`n[INFO] Nó primário atual detectado: $Primary"
 
-# Usuário escolhe o AG
-$AvailabilityGroup = Select-AvailabilityGroup -instance $Primary
+# Corrigindo o ponto: usa servidor + instância na consulta de AGs
+$PrimaryInstanceForAG = "$Primary\$Instancia"
+$AvailabilityGroup = Select-AvailabilityGroup -instance $PrimaryInstanceForAG
 Write-Output "[INFO] Availability Group selecionado: $AvailabilityGroup"
 
 # Query para pegar réplicas em modo síncrono
@@ -95,20 +95,4 @@ foreach ($replica in $syncReplicas) {
 
     $tsql = @"
 ALTER AVAILABILITY GROUP [$AvailabilityGroup]
-MODIFY REPLICA ON
-N'$replicaName\$Instancia' WITH
-(PRIMARY_ROLE (READ_ONLY_ROUTING_LIST=(($routingListText),('$replicaName\$Instancia'))));
-"@
-
-    Write-Output "`n[INFO] Atualizando routing list para $replicaName"
-    Write-Output "[DEBUG] Comando T-SQL:"
-    Write-Output $tsql
-
-    try {
-        Invoke-Sqlcmd -Query $tsql -ServerInstance $Primary -ErrorAction Stop
-        Write-Output "[SUCCESS] Routing list atualizada com sucesso para $replicaName"
-    }
-    catch {
-        Write-Output "[ERROR] Falha ao atualizar routing list para $replicaName : $_"
-    }
-}
+MODIFY RE
