@@ -1,8 +1,8 @@
 # === VARIÁVEIS ===
 $driveLetter = "F:"
-$dataFilePath = "F:\MSSQL\DADOS\DBAGVM000.mdf"
-$sqlInstance = "NOME_DA_INSTANCIA"    # Ex: "SQLSERVER01" ou "MSSQLSERVER"
-$databaseName = "NOME_DO_BANCO"       # Ex: "DBAGVM000"
+$dataFilePath = "F:\MSSQL\DADOS\FILENAME.mdf"
+$sqlInstance = "NOME_DA_INSTANCIA"    # Ex: "SQLSERVER01" ou "SQLSERVER01\INST" (Se for instancia nomeada)
+$databaseName = "NOME_DO_BANCO"       # Ex: "DBNAME"
 
 Write-Host "==== CHECKLIST DE DIAGNÓSTICO – ERRO 21 (DEVICE NOT READY) ====" -ForegroundColor Cyan
 
