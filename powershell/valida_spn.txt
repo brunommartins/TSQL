@@ -1,0 +1,61 @@
+# Função para buscar conta de serviço do SQL Server
+function Get-SQLServiceAccount {
+    param ($instancia)
+
+    $serviceName = if ($instancia -eq "MSSQLSERVER") { "MSSQLSERVER" } else { "MSSQL$" + $instancia }
+    $wmi = Get-WmiObject -Class Win32_Service -Filter "Name = '$serviceName'" -ErrorAction SilentlyContinue
+
+    if ($wmi) {
+        return $wmi.StartName
+    } else {
+        Write-Warning "⚠️ Não foi possível encontrar o serviço $serviceName"
+        return $null
+    }
+}
+
+# Pegando nome do servidor
+$SQLServerName = $env:COMPUTERNAME
+$FQDN = [System.Net.Dns]::GetHostByName($SQLServerName).HostName
+$instanciasSQL = @()
+
+# Lendo instâncias instaladas
+$regPath = "HKLM:\SOFTWARE\Microsoft\Microsoft SQL Server"
+(Get-ItemProperty -Path $regPath).InstalledInstances | ForEach-Object {
+    $instanciasSQL += $_
+}
+
+Write-Host "`n🔍 Verificando SPNs para as instâncias SQL..."
+
+foreach ($instancia in $instanciasSQL) {
+    $isDefaultInstance = ($instancia -eq "MSSQLSERVER")
+    $nomeInstancia = if ($isDefaultInstance) { $SQLServerName } else { "$SQLServerName\$instancia" }
+    $port = 1433  # Altere se necessário
+
+    $serviceAccount = Get-SQLServiceAccount -instancia $instancia
+    if (-not $serviceAccount) { continue }
+
+    # Contas locais não requerem SPN manual
+    if ($serviceAccount -like "*LocalSystem" -or $serviceAccount -like "*LocalService" -or $serviceAccount -like "*NetworkService") {
+        Write-Host "⚠️ Conta $serviceAccount é gerenciada pelo sistema. SPN não precisa ser registrado manualmente.`n"
+        continue
+    }
+
+    # Correção com $() para evitar erros de formatação
+    $spn1 = if ($isDefaultInstance) { "MSSQLSvc/$($SQLServerName):$port" } else { "MSSQLSvc/$($SQLServerName)\$instancia" }
+    $spn2 = if ($isDefaultInstance) { "MSSQLSvc/$($FQDN):$port" } else { "MSSQLSvc/$($FQDN)\$instancia" }
+
+    $spnsEsperados = @($spn1, $spn2)
+    $spnsRegistrados = setspn -L $serviceAccount 2>$null
+
+    foreach ($spn in $spnsEsperados) {
+        if ($spnsRegistrados -match [regex]::Escape($spn)) {
+            Write-Host "✅ SPN existe: $spn"
+        } else {
+            Write-Warning "❌ SPN ausente: $spn"
+            Write-Host "👉 Comando para registrar:"
+            Write-Host "setspn -A $spn $serviceAccount"
+        }
+    }
+
+    Write-Host ""
+}
