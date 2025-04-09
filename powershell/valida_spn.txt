@@ -1,51 +1,52 @@
-# Função para buscar conta de serviço do SQL Server
 function Get-SQLServiceAccount {
     param ($instancia)
-
     $serviceName = if ($instancia -eq "MSSQLSERVER") { "MSSQLSERVER" } else { "MSSQL$" + $instancia }
     $wmi = Get-WmiObject -Class Win32_Service -Filter "Name = '$serviceName'" -ErrorAction SilentlyContinue
-
-    if ($wmi) {
-        return $wmi.StartName
-    } else {
-        Write-Warning "⚠️ Não foi possível encontrar o serviço $serviceName"
-        return $null
-    }
+    return $wmi?.StartName
 }
 
-# Pegando nome do servidor
+function Get-SQLPort {
+    param ($instanciaId)
+
+    $tcpKeyPath = "HKLM:\SOFTWARE\Microsoft\Microsoft SQL Server\$instanciaId\MSSQLServer\SuperSocketNetLib\Tcp\IPAll"
+    $tcpPort = (Get-ItemProperty -Path $tcpKeyPath -ErrorAction SilentlyContinue).TcpPort
+    return if ($tcpPort) { $tcpPort } else { "1433" }
+}
+
+# Coleta informações básicas
 $SQLServerName = $env:COMPUTERNAME
 $FQDN = [System.Net.Dns]::GetHostByName($SQLServerName).HostName
 $instanciasSQL = @()
-
-# Lendo instâncias instaladas
 $regPath = "HKLM:\SOFTWARE\Microsoft\Microsoft SQL Server"
-(Get-ItemProperty -Path $regPath).InstalledInstances | ForEach-Object {
-    $instanciasSQL += $_
+$instanceMap = (Get-ItemProperty -Path "$regPath\Instance Names\SQL" -ErrorAction SilentlyContinue)
+
+# Verifica se há instâncias
+if (-not $instanceMap) {
+    Write-Host "❌ Nenhuma instância SQL encontrada."
+    exit
 }
 
-Write-Host "`n🔍 Verificando SPNs para as instâncias SQL..."
+$instanceMap.PSObject.Properties | ForEach-Object {
+    $nomeInstancia = $_.Name
+    $instanciaId = $_.Value
+    $isDefaultInstance = ($nomeInstancia -eq "MSSQLSERVER")
+    $serviceAccount = Get-SQLServiceAccount -instancia $nomeInstancia
+    $porta = Get-SQLPort -instanciaId $instanciaId
 
-foreach ($instancia in $instanciasSQL) {
-    $isDefaultInstance = ($instancia -eq "MSSQLSERVER")
-    $nomeInstancia = if ($isDefaultInstance) { $SQLServerName } else { "$SQLServerName\$instancia" }
-    $port = 1433  # Altere se necessário
+    if (-not $serviceAccount) { return }
 
-    $serviceAccount = Get-SQLServiceAccount -instancia $instancia
-    if (-not $serviceAccount) { continue }
-
-    # Contas locais não requerem SPN manual
     if ($serviceAccount -like "*LocalSystem" -or $serviceAccount -like "*LocalService" -or $serviceAccount -like "*NetworkService") {
         Write-Host "⚠️ Conta $serviceAccount é gerenciada pelo sistema. SPN não precisa ser registrado manualmente.`n"
-        continue
+        return
     }
 
-    # Correção com $() para evitar erros de formatação
-    $spn1 = if ($isDefaultInstance) { "MSSQLSvc/$($SQLServerName):$port" } else { "MSSQLSvc/$($SQLServerName)\$instancia" }
-    $spn2 = if ($isDefaultInstance) { "MSSQLSvc/$($FQDN):$port" } else { "MSSQLSvc/$($FQDN)\$instancia" }
+    $spn1 = if ($isDefaultInstance) { "MSSQLSvc/$($SQLServerName):$porta" } else { "MSSQLSvc/$($SQLServerName)\$nomeInstancia" }
+    $spn2 = if ($isDefaultInstance) { "MSSQLSvc/$($FQDN):$porta" } else { "MSSQLSvc/$($FQDN)\$nomeInstancia" }
 
     $spnsEsperados = @($spn1, $spn2)
     $spnsRegistrados = setspn -L $serviceAccount 2>$null
+
+    Write-Host "`n🔍 Verificando SPNs para instância: $nomeInstancia (porta $porta)..."
 
     foreach ($spn in $spnsEsperados) {
         if ($spnsRegistrados -match [regex]::Escape($spn)) {
@@ -56,6 +57,4 @@ foreach ($instancia in $instanciasSQL) {
             Write-Host "setspn -A $spn $serviceAccount"
         }
     }
-
-    Write-Host ""
 }
