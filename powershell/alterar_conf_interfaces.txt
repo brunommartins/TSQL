@@ -1,0 +1,14 @@
+
+
+$servidores = @("SERVER1", "SERVER2")
+
+foreach ($srv in $servidores) {
+    Invoke-Command -ComputerName $srv -ScriptBlock {
+        $adapter = Get-NetAdapterAdvancedProperty -DisplayName 'Jumbo Packet' |
+                   Where-Object { $_.Name -like "*33*" }
+
+        if ($adapter) {
+            Set-NetAdapterAdvancedProperty -Name $adapter.Name -DisplayName "Jumbo Packet" -DisplayValue "8814"
+        }
+    }
+}
