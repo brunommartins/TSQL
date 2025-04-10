@@ -12,7 +12,7 @@ Esta pasta contém scripts desenvolvidos para administração de ambientes SQL S
 
 ### Scripts disponíveis
 
-- `ag_dict_failover_management.txt` – Gerencia dinamicamente réplicas síncronas em AG do ambiente DICT.
+- `ag_dict_failover_management.txt` – Gerencia dinamicamente réplicas síncronas em AG .
 - `check_ag_health.txt` – Verifica a integridade das réplicas em um AG.
 - `check_log_space.txt` – Monitora o espaço disponível nos logs de transação.
 - `check_server_network_config.txt` – Coleta e exibe a configuração de rede dos servidores.
