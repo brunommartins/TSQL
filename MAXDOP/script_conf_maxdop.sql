@@ -1,3 +1,26 @@
+/*
+
+--- Diagnóstico do ambiente ---
+CPUs totais: 32
+NUMA nodes: 2
+CPUs por NUMA: 16
+MaxDOP atual: 0
+Cost Threshold atual: 5
+--- Sugestões com base em boas práticas ---
+MaxDOP sugerido: 8
+Cost Threshold sugerido: 25
+--- Comandos sugeridos para aplicar as configurações ---
+EXEC sp_configure 'show advanced options', 1; RECONFIGURE;
+EXEC sp_configure 'max degree of parallelism', 8; RECONFIGURE;
+EXEC sp_configure 'cost threshold for parallelism', 25; RECONFIGURE;
+EXEC sp_configure 'show advanced options', 0; RECONFIGURE;
+
+
+*/
+
+    
+
+
 -- Habilita opções avançadas temporariamente
 EXEC sp_configure 'show advanced options', 1;
 RECONFIGURE;
