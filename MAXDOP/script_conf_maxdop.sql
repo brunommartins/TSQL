@@ -1,22 +1,3 @@
-/*
-
---- Diagnóstico do ambiente ---
-CPUs totais: 32
-NUMA nodes: 2
-CPUs por NUMA: 16
-MaxDOP atual: 0
-Cost Threshold atual: 5
---- Sugestões com base em boas práticas ---
-MaxDOP sugerido: 8
-Cost Threshold sugerido: 25
---- Comandos sugeridos para aplicar as configurações ---
-EXEC sp_configure 'show advanced options', 1; RECONFIGURE;
-EXEC sp_configure 'max degree of parallelism', 8; RECONFIGURE;
-EXEC sp_configure 'cost threshold for parallelism', 25; RECONFIGURE;
-EXEC sp_configure 'show advanced options', 0; RECONFIGURE;
-
-
-*/
 
 /*
 -------------------------------------------------------------------------------------
@@ -35,6 +16,22 @@ EXEC sp_configure 'show advanced options', 0; RECONFIGURE;
   ao final o estado inicial.
 
 -------------------------------------------------------------------------------------
+
+--- Diagnóstico do ambiente ---
+CPUs totais: 32
+NUMA nodes: 2
+CPUs por NUMA: 16
+MaxDOP atual: 0
+Cost Threshold atual: 5
+--- Sugestões com base em boas práticas ---
+MaxDOP sugerido: 8
+Cost Threshold sugerido: 25
+--- Comandos sugeridos para aplicar as configurações ---
+EXEC sp_configure 'show advanced options', 1; RECONFIGURE;
+EXEC sp_configure 'max degree of parallelism', 8; RECONFIGURE;
+EXEC sp_configure 'cost threshold for parallelism', 25; RECONFIGURE;
+EXEC sp_configure 'show advanced options', 0; RECONFIGURE;
+
 */
 
 -- Armazena valor atual de 'show advanced options'
@@ -102,7 +99,11 @@ PRINT 'MaxDOP sugerido: ' + CAST(@sugestao_maxdop AS VARCHAR);
 PRINT 'Cost Threshold sugerido: ' + CAST(@sugestao_cost_threshold AS VARCHAR);
 
 PRINT '--- Comandos sugeridos para aplicar as configurações ---';
-PRINT 'EXEC sp_configure ''show advanced options'', 1; RECONFIGURE;';
+IF @showAdvancedOriginal = 0
+BEGIN
+	PRINT 'EXEC sp_configure ''show advanced options'', 1; RECONFIGURE;';
+    RECONFIGURE;
+END;
 PRINT 'EXEC sp_configure ''max degree of parallelism'', ' + CAST(@sugestao_maxdop AS VARCHAR) + '; RECONFIGURE;';
 PRINT 'EXEC sp_configure ''cost threshold for parallelism'', ' + CAST(@sugestao_cost_threshold AS VARCHAR) + '; RECONFIGURE;';
 -- Restaura valor original de 'show advanced options'
