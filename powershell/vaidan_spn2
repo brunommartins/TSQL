@@ -59,6 +59,6 @@ function Get-SqlServerSPNs {
 }
 
 # Exemplo de uso
-$SqlServerHostName = "dpolwdfos00004"
+$SqlServerHostName = "server"
 $SqlServerPort = 50073
 Get-SqlServerSPNs -SqlServerHostName $SqlServerHostName -SqlServerPort $SqlServerPort
