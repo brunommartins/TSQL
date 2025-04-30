@@ -22,7 +22,7 @@ $instanceMap = (Get-ItemProperty -Path "$regPath\Instance Names\SQL" -ErrorActio
 
 # Verifica se há instâncias
 if (-not $instanceMap) {
-    Write-Host "❌ Nenhuma instância SQL encontrada."
+    Write-Host " Nenhuma instância SQL encontrada."
     exit
 }
 
@@ -36,7 +36,7 @@ $instanceMap.PSObject.Properties | ForEach-Object {
     if (-not $serviceAccount) { return }
 
     if ($serviceAccount -like "*LocalSystem" -or $serviceAccount -like "*LocalService" -or $serviceAccount -like "*NetworkService") {
-        Write-Host "⚠️ Conta $serviceAccount é gerenciada pelo sistema. SPN não precisa ser registrado manualmente.`n"
+        Write-Host "Conta $serviceAccount é gerenciada pelo sistema. SPN não precisa ser registrado manualmente.`n"
         return
     }
 
@@ -46,14 +46,14 @@ $instanceMap.PSObject.Properties | ForEach-Object {
     $spnsEsperados = @($spn1, $spn2)
     $spnsRegistrados = setspn -L $serviceAccount 2>$null
 
-    Write-Host "`n🔍 Verificando SPNs para instância: $nomeInstancia (porta $porta)..."
+    Write-Host "`n Verificando SPNs para instância: $nomeInstancia (porta $porta)..."
 
     foreach ($spn in $spnsEsperados) {
         if ($spnsRegistrados -match [regex]::Escape($spn)) {
-            Write-Host "✅ SPN existe: $spn"
+            Write-Host "SPN existe: $spn"
         } else {
-            Write-Warning "❌ SPN ausente: $spn"
-            Write-Host "👉 Comando para registrar:"
+            Write-Warning "SPN ausente: $spn"
+            Write-Host "Comando para registrar:"
             Write-Host "setspn -A $spn $serviceAccount"
         }
     }
