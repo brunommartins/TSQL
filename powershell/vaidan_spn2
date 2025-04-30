@@ -1,0 +1,64 @@
+cls
+
+function Get-SqlServerSPNs {
+    param(
+        [string]$SqlServerHostName,
+        [int]$SqlServerPort = 1433
+    )
+
+    try {
+        $FQDN = [System.Net.Dns]::GetHostEntry($SqlServerHostName).HostName
+    } catch {
+        Write-Host "Erro ao resolver FQDN de $SqlServerHostName"
+        return
+    }
+
+    Write-Host "`n Verificando SPNs registrados para: $SqlServerHostName`n"
+
+    $spnsRaw = & setspn -L $SqlServerHostName 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host " Erro ao executar setspn. Verifique se o host está correto."
+        return
+    }
+
+    $registeredSPNs = $spnsRaw | Where-Object { $_ -match "^MSSQLSvc/" }
+
+    Write-Host "SPNs encontrados:"
+    foreach ($spn in $registeredSPNs) {
+        Write-Host " - $spn"
+    }
+    Write-Host ""
+
+    $recommendedSPNs = @(
+        "MSSQLSvc/$($SqlServerHostName):$SqlServerPort",
+        "MSSQLSvc/$($FQDN):$SqlServerPort",
+        "MSSQLSvc/$($SqlServerHostName)",
+        "MSSQLSvc/$($FQDN)"
+    )
+
+    Write-Host "SPNs recomendados:"
+    foreach ($spn in $recommendedSPNs) {
+        Write-Host " - $spn"
+    }
+    Write-Host ""
+
+    $missingSPNs = $recommendedSPNs | Where-Object { $_ -notin $registeredSPNs }
+    if ($missingSPNs.Count -gt 0) {
+        Write-Host " Os seguintes SPNs recomendados estão ausentes:"
+        foreach ($spn in $missingSPNs) {
+            Write-Host " - $spn"
+        }
+
+        Write-Host "`n Comandos para adicionar os SPNs ausentes (executar com privilégios de domínio):"
+        foreach ($spn in $missingSPNs) {
+            Write-Host "setspn -A $spn $SqlServerHostName"
+        }
+    } else {
+        Write-Host "Todos os SPNs recomendados estão registrados."
+    }
+}
+
+# Exemplo de uso
+$SqlServerHostName = "dpolwdfos00004"
+$SqlServerPort = 50073
+Get-SqlServerSPNs -SqlServerHostName $SqlServerHostName -SqlServerPort $SqlServerPort
