@@ -1,0 +1,39 @@
+# Caminho da unidade que deseja analisar (altere conforme necessário)
+$drive = "D:\"
+
+# Função para obter os 10 maiores arquivos
+Write-Host "`n>> 10 MAIORES ARQUIVOS DO DISCO <<`n"
+$maioresArquivos = Get-ChildItem -Path $drive -Recurse -File -ErrorAction SilentlyContinue |
+    Sort-Object Length -Descending |
+    Select-Object -First 10
+
+if ($maioresArquivos) {
+    $maioresArquivos | Select-Object @{Name="Arquivo"; Expression={$_.FullName}},
+                                      @{Name="Tamanho (MB)"; Expression={[math]::Round($_.Length / 1MB, 2)}} |
+    Format-Table -AutoSize
+} else {
+    Write-Host "Nenhum arquivo encontrado."
+}
+
+# Função para calcular o tamanho de diretórios
+function Get-FolderSizes {
+    param (
+        [string]$RootPath
+    )
+
+    Write-Host "`n>> PASTAS MAIS OCUPANDO ESPAÇO <<`n"
+    
+    $folders = Get-ChildItem -Path $RootPath -Directory -ErrorAction SilentlyContinue
+
+    foreach ($folder in $folders) {
+        $size = (Get-ChildItem -Path $folder.FullName -Recurse -File -ErrorAction SilentlyContinue | 
+            Measure-Object -Property Length -Sum).Sum
+        [PSCustomObject]@{
+            Pasta  = $folder.FullName
+            TamanhoMB = [math]::Round($size / 1MB, 2)
+        }
+    }
+}
+
+# Executa e ordena as pastas por tamanho
+Get-FolderSizes -RootPath $drive | Sort-Object TamanhoMB -Descending | Select-Object -First 10 | Format-Table -AutoSize
