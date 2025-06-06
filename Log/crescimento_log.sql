@@ -16,7 +16,7 @@ AND dopc1.cntr_value > 0
 SELECT [Database Name], [Log Size (MB)],COUNT(b.database_id) AS [Number of VLFS] 
 FROM [DatabaseCount] AS [DBCount]  
 CROSS APPLY sys.dm_db_log_info([DBCount].DatabaseID) b
- --where [Database Name] = 'DBSMPROD'
+ --where [Database Name] = 'dbname'
 GROUP BY [Database Name], [Log Size (MB)]
 
 
