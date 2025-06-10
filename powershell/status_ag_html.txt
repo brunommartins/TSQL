@@ -1,0 +1,123 @@
+# Caminho do HTML
+$htmlFile = "C:\Temp\AG_Diagnostico_$(Get-Date -Format 'yyyyMMdd_HHmmss').html"
+
+# Configurações
+$servidores = @("SERVER1", "SERVER2", "SERVER3")
+$instancia = "INSTNAME"
+$listener = "SQLLISTENER"
+$portaSQL = 1234
+
+# Início do HTML
+$html = @()
+$html += "<html><head><title>Diagnóstico AG DICT</title><style>body{font-family:sans-serif}table{border-collapse:collapse}td,th{border:1px solid #ccc;padding:6px}</style></head><body>"
+$html += "<h1>Diagnóstico Always On - AG DICT</h1><p>Gerado em: $(Get-Date)</p>"
+
+foreach ($servidor in $servidores) {
+    $html += "<h2>Servidor: $servidor</h2><ul>"
+
+    $dados = Invoke-Command -ComputerName $servidor -ScriptBlock {
+        param ($instancia)
+
+        $resultado = @{}
+
+        # Eventos
+        $eventos = Get-EventLog -LogName Application -Newest 100 |
+            Where-Object { $_.Message -match "Availability|connection" } |
+            Select-Object -First 5 TimeGenerated, EntryType, Source, Message
+        $resultado["Eventos"] = if ($eventos.Count -eq 0) { @() } else { $eventos }
+
+        # CPU/RAM
+        $cpu = Get-WmiObject Win32_Processor | Measure-Object -Property LoadPercentage -Average | Select -ExpandProperty Average
+        $mem = Get-WmiObject Win32_OperatingSystem
+        $resultado["CPU"] = $cpu
+        $resultado["RAM"] = "{0:N2} GB / {1:N2} GB" -f (($mem.TotalVisibleMemorySize - $mem.FreePhysicalMemory)/1MB), ($mem.TotalVisibleMemorySize/1MB)
+
+        # Coleta SQL
+        try {
+            $resultado["SQL_OK"] = $true
+
+            $query1 = @"
+
+SELECT 
+    ag.name AS AGName,
+    ar.replica_server_name,
+    ars.role_desc,
+    ar.availability_mode_desc,
+    ars.synchronization_health_desc
+FROM sys.availability_groups ag
+JOIN sys.availability_replicas ar ON ag.group_id = ar.group_id
+JOIN sys.dm_hadr_availability_replica_states ars ON ar.replica_id = ars.replica_id
+JOIN sys.dm_hadr_availability_replica_cluster_states arc ON ar.replica_id = arc.replica_id
+WHERE ars.is_local = 1
+"@
+
+            $query2 = @"
+SELECT DB_NAME(drs.database_id) AS database_name,
+       drs.synchronization_state_desc,
+       drs.log_send_queue_size,
+       drs.redo_queue_size,
+       drs.redo_rate,
+       drs.log_send_rate
+FROM sys.dm_hadr_database_replica_states drs
+WHERE drs.is_local = 1
+"@
+
+            $resultado["SQL_Status"] = Invoke-Sqlcmd -ServerInstance "$env:COMPUTERNAME\$instancia" -Query $query1 -ErrorAction Stop
+            $resultado["SQL_Latency"] = Invoke-Sqlcmd -ServerInstance "$env:COMPUTERNAME\$instancia" -Query $query2 -ErrorAction Stop
+        } catch {
+            $resultado["SQL_OK"] = $false
+            $resultado["SQL_Error"] = $_.Exception.Message
+        }
+
+        return $resultado
+    } -ArgumentList $instancia
+
+    # Eventos
+    $html += "<li><strong>Eventos Recentes:</strong>"
+    if ($dados["Eventos"].Count -gt 0) {
+        $html += "<table><tr><th>Data</th><th>Tipo</th><th>Fonte</th><th>Mensagem</th></tr>"
+        foreach ($e in $dados["Eventos"]) {
+            $html += "<tr><td>$($e.TimeGenerated)</td><td>$($e.EntryType)</td><td>$($e.Source)</td><td>$($e.Message)</td></tr>"
+        }
+        $html += "</table></li>"
+    } else {
+        $html += "<p>Nenhum evento recente encontrado no Event Viewer para 'Availability' ou 'connection'.</p></li>"
+    }
+
+    # CPU/RAM
+    $html += "<li><strong>CPU:</strong> $($dados["CPU"])%</li>"
+    $html += "<li><strong>Memória:</strong> $($dados["RAM"])</li>"
+
+    # SQL
+    if ($dados["SQL_OK"]) {
+        # Status da réplica
+        $html += "<li><strong>Status da Réplica Local:</strong><table><tr><th>AG</th><th>Réplica</th><th>Role</th><th>Sync State</th><th>Health</th></tr>"
+        foreach ($row in $dados["SQL_Status"]) {
+            $html += "<tr><td>$($row.AGName)</td><td>$($row.replica_server_name)</td><td>$($row.role_desc)</td><td>$($row.availability_mode_desc)</td><td>$($row.synchronization_health_desc)</td></tr>"
+        }
+        $html += "</table></li>"
+
+        # Latência
+        $html += "<li><strong>Latência e Performance (Databases locais):</strong><table><tr><th>Database</th><th>Sync State</th><th>Log Send Queue</th><th>Redo Queue</th><th>Redo Rate</th><th>Log Send Rate</th></tr>"
+        foreach ($row in $dados["SQL_Latency"]) {
+            $html += "<tr><td>$($row.database_name)</td><td>$($row.synchronization_state_desc)</td><td>$($row.log_send_queue_size)</td><td>$($row.redo_queue_size)</td><td>$($row.redo_rate)</td><td>$($row.log_send_rate)</td></tr>"
+        }
+        $html += "</table></li>"
+    } else {
+        $html += "<li><strong>Erro SQL:</strong> $($dados["SQL_Error"])</li>"
+    }
+
+    $html += "</ul>"
+}
+
+# Teste com Listener
+$html += "<h2>Conectividade com Listener ($listener :$portaSQL)</h2><pre>"
+$con = Test-NetConnection -ComputerName $listener -Port $portaSQL
+$html += "TCP Conexão: $($con.TcpTestSucceeded)`nIP Remoto: $($con.RemoteAddress)"
+$html += "</pre>"
+
+# Finaliza HTML
+$html += "</body></html>"
+$html -join "`n" | Out-File -FilePath $htmlFile -Encoding UTF8
+
+Write-Host "Arquivo gerado: $htmlFile"
