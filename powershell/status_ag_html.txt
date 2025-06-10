@@ -1,3 +1,43 @@
+<#
+.SYNOPSIS
+Script de Diagnóstico do Always On Availability Group com geração de relatório HTML.
+
+.DESCRIPTION
+Este script realiza uma varredura remota em todos os nós participantes do AG do ambiente ,
+coletando informações detalhadas sobre:
+
+- Eventos recentes no Event Viewer relacionados à disponibilidade e conexão.
+- Consumo de CPU e memória em cada servidor.
+- Estado de sincronização da réplica local (role, sync state, health).
+- Métricas de latência e desempenho (redo queue, log send queue, taxas).
+- Conectividade TCP com o listener configurado do AG.
+- Geração de relatório completo em formato HTML para análise visual e auditoria.
+
+Recomenda-se a execução periódica (por exemplo, via Task Scheduler) para acompanhamento contínuo da saúde do ambiente.
+
+.AUTHOR
+Bruno de Melo Martins
+https://github.com/brunommartins
+
+.REQUIREMENTS
+- PowerShell 5.1 ou superior.
+- Módulo SqlServer instalado (Install-Module SqlServer).
+- Acesso remoto via WinRM aos nós do AG.
+- Permissão para executar Invoke-Sqlcmd na instância XXXXX.
+
+.NOTES
+- A instância SQL utilizada neste script é nomeada: "XXXXX".
+- O listener do AG deve estar acessível na porta 1433.
+- O relatório é salvo localmente no caminho: C:\Temp\AG_Diagnostico_yyyymmdd_hhmmss.html
+
+.LAST UPDATED
+10/06/2025
+
+.VERSION
+1.0
+#>
+
+
 # Caminho do HTML
 $htmlFile = "C:\Temp\AG_Diagnostico_$(Get-Date -Format 'yyyyMMdd_HHmmss').html"
 
