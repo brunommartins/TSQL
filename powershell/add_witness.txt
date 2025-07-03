@@ -1,0 +1,31 @@
+#rodar somente na produção
+
+# Variáveis
+$username = "user"
+$passwordPlain = 'passw'
+$shareRoot = "\\10.1.1.1\abc"
+$sufixo = "XYZ_PRO"  # <<< ALTERE AQUI
+
+# Converte a senha para SecureString
+$password = $passwordPlain | ConvertTo-SecureString -AsPlainText -Force
+$cred = New-Object System.Management.Automation.PSCredential ($username, $password)
+
+# Obtém o nome do cluster
+$clusterName = (Get-Cluster).Name
+$folderName = "${clusterName}_$sufixo"
+$fullPath = Join-Path $shareRoot $folderName
+
+# Mapeia uma unidade de rede temporária (Z:) usando as credenciais
+New-PSDrive -Name "Z" -PSProvider FileSystem -Root $shareRoot -Credential $cred -Persist
+
+# Cria a pasta se não existir
+$newFolderPath = "Z:\$folderName"
+if (-not (Test-Path $newFolderPath)) {
+    New-Item -Path $newFolderPath -ItemType Directory | Out-Null
+}
+
+# Remove o mapeamento após uso
+Remove-PSDrive -Name "Z"
+
+# Define o quorum
+Set-ClusterQuorum -FileShareWitness $fullPath -Credential $cred
