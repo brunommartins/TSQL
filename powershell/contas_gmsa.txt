@@ -1,0 +1,395 @@
+cls
+#klist -li 0x3e7 purge
+#gpupdate /force
+
+#alterar o dominio do usuário
+
+# ====== DEFINIR MANUALMENTE A VARIÁVEL DO AMBIENTE E APLICAÇÃO ======
+$env = "H"     # Ambiente: H = Homologação, P = Produção, D = Desenvolvimento, etc.
+$app = "ABI"   # Nome da aplicação associada
+# ================================================================
+
+function Get-FacterValues {
+    if (-not (Get-Command facter -ErrorAction SilentlyContinue)) {
+        Write-Host "`n[WARNING] Comando 'facter' não encontrado. Usando alternativas básicas..." -ForegroundColor Yellow
+        return [PSCustomObject]@{
+            hostname = $env:COMPUTERNAME
+        }
+    }
+
+    $facterOutput = facter | Out-String
+    $facterValues = @{}
+
+    $facterOutput -split "`r?`n" | ForEach-Object {
+        $line = $_.Trim()
+        if (-not [string]::IsNullOrWhiteSpace($line)) {
+            $parts = $line -split ' => ', 2
+            if ($parts.Count -eq 2) {
+                $key = $parts[0].Trim()
+                $value = $parts[1].TrimEnd(',').Trim('"')
+                $facterValues[$key] = $value
+            }
+        }
+    }
+
+    return New-Object -TypeName PSObject -Property $facterValues
+}
+
+# Coleta o nome do host
+$facterValues = Get-FacterValues
+$serverName = $facterValues.hostname
+
+# Monta os nomes da conta e grupo
+$accountName = "gMSA_${env}SQL_${app}"
+$groupName = "gMSA_${env}SQL_SG_${app}"
+
+"#" * 100
+Write-Host "`n[INFO] Iniciando validações prévias..."
+Write-Host "`nConta gMSA: $accountName"
+Write-Host "Grupo de segurança: $groupName"
+
+"#" * 100
+Write-Host "`n[INFO] Verificando existência da conta gMSA no AD..."
+try {
+    Get-ADServiceAccount –Identity $accountName -Properties * |
+        Select Name,SamAccountName,WhenCreated,WhenChanged,PasswordLastSet,LastLogonDate,PrincipalsAllowedToRetrieveManagedPassword
+} catch {
+    Write-Host "Conta $accountName não encontrada no AD." -ForegroundColor Red
+}
+
+Write-Host "`n[INFO] Verificando membros do grupo $groupName..."
+try {
+    Get-ADGroupMember $groupName | Select name,SamAccountName
+} catch {
+    Write-Host "Grupo $groupName não encontrado." -ForegroundColor Red
+}
+
+"#" * 100
+Write-Host "`n[INFO] Detectando instância SQL Server..."
+
+$svc = Get-Service -Name mssql* | Where {$_.Status -eq "Running"}
+$instanceRaw = $svc.Name | Where {$_ -match "^MSSQL"} | Select-Object -First 1
+$instanceName = if ($instanceRaw -eq "MSSQLSERVER") { "" } else { $instanceRaw -replace '^MSSQL\$', '' }
+$SQLServer = if ($instanceName -eq "") { $env:COMPUTERNAME } else { "$env:COMPUTERNAME\$instanceName" }
+
+Write-Host "[INFO] SQL Server detectado: $SQLServer"
+
+"#" * 100
+Write-Host "`n[INFO] Coletando informações do SQL Server..."
+
+try {
+    Invoke-Sqlcmd -ServerInstance $SQLServer -Database master -Query "SELECT @@SERVERNAME;"
+    Invoke-Sqlcmd -ServerInstance $SQLServer -Database master -Query "SELECT @@VERSION;"
+    Invoke-Sqlcmd -ServerInstance $SQLServer -Database master -Query "SELECT servicename, service_account FROM sys.dm_server_services;"
+    Invoke-Sqlcmd -ServerInstance $SQLServer -Database master -Query "EXEC xp_readerrorlog 0,1,N'SPN';"
+} catch {
+    Write-Host "Erro ao executar comandos SQL: $_" -ForegroundColor Red
+}
+
+"#" * 100
+Write-Host "`n[INFO] Validando SPNs registrados..."
+setspn -l $env:COMPUTERNAME
+
+"#" * 100
+Write-Host "`n[INFO] Instalando RSAT AD PowerShell (se necessário)..."
+
+if ($null -eq (Get-Command Get-ADUser -ErrorAction SilentlyContinue)) {
+    try {
+        Install-WindowsFeature RSAT-AD-PowerShell -ErrorAction Stop
+    } catch {
+        try {
+            Add-WindowsCapability -Online -Name "Rsat.ActiveDirectory.DS-LDS.Tools~~~~0.0.1.0"
+        } catch {
+            Write-Host "Falha ao instalar RSAT." -ForegroundColor Red
+        }
+    }
+}
+
+"#" * 100
+Write-Host "`n[INFO] Instalando gMSA $accountName localmente..."
+try {
+    Install-ADServiceAccount $accountName -ErrorAction Stop
+    Write-Host "Conta gMSA instalada com sucesso." -ForegroundColor Green
+} catch {
+    Write-Host "Erro ao instalar gMSA: $_" -ForegroundColor Red
+}
+
+"#" * 100
+Write-Host "`n[INFO] Testando conta gMSA..."
+try {
+    Test-ADServiceAccount $accountName
+} catch {
+    Write-Host "Erro ao testar gMSA: $_" -ForegroundColor Red
+}
+
+"#" * 100
+Write-Host "`n[INFO] Validando grupo local 'Users'..."
+
+$contaLocal = "$accountName$"
+$contaFqdn = "XXX\$accountName$"
+try {
+    $exists = Get-LocalGroupMember -Name "Users" | Where-Object { $_.Name -like "*$contaLocal" }
+    if ($exists) {
+        Write-Host "Usuário $contaFqdn já pertence ao grupo 'Users'." -ForegroundColor Yellow
+    } else {
+        Add-LocalGroupMember -Group "Users" -Member $contaFqdn
+        Write-Host "Usuário $contaLocal adicionado ao grupo 'Users'." -ForegroundColor Green
+    }
+} catch {
+    Write-Host "Erro ao validar/adicionar membro ao grupo local: $_" -ForegroundColor Red
+}
+
+"#" * 100
+Write-Host "`n[INFO] Criando login no SQL Server para $contaLocal..."
+
+$q_check_login = "SELECT name FROM sys.server_principals WHERE name = N'$contaFqdn';"
+$loginExists = Invoke-Sqlcmd -ServerInstance $SQLServer -Database master -Query $q_check_login
+
+if (-not $loginExists) {
+    $q_create = @"
+CREATE LOGIN [$contaFqdn] FROM WINDOWS WITH DEFAULT_DATABASE=[master];
+ALTER SERVER ROLE [sysadmin] ADD MEMBER [$contaFqdn];
+"@
+    Invoke-Sqlcmd -ServerInstance $SQLServer -Database master -Query $q_create
+    Write-Host "Login [$contaFqdn] criado e adicionado como sysadmin com sucesso." -ForegroundColor Green
+} else {
+    Write-Host "Login [$contaFqdn] já existe. Pulando criação." -ForegroundColor Yellow
+}
+
+
+"#" * 100
+Write-Host "`n[INFO] Verificando conta atual do serviço SQL Server..."
+
+# Verifica conta atual usada pelo serviço SQL Server
+
+# Função para alterar conta de serviço para gMSA
+function Set-ServiceAccountToGMSA {
+    param (
+        [string]$serviceName,
+        [string]$gmsaAccount
+    )
+
+    $service = Get-WmiObject -Class Win32_Service -Filter "Name='$serviceName'"
+    if (-not $service) {
+        Write-Host "[AVISO] Serviço $serviceName não encontrado." -ForegroundColor Yellow
+        return
+    }
+
+    $currentAccount = $service.StartName
+    Write-Host "`nServiço detectado: $serviceName"
+    Write-Host "Conta atual (via WMI): $currentAccount"
+
+    if ($currentAccount -like "NT Service\*") {
+        Write-Host "[ALERTA] Serviço está usando conta local ($currentAccount)." -ForegroundColor Yellow
+        Write-Host "[AÇÃO] Trocando a conta do serviço $serviceName para $gmsaAccount..."
+
+        try {
+            sc.exe config $serviceName obj= "$gmsaAccount"
+            if ($LASTEXITCODE -ne 0) {
+                Write-Host "[ERRO] Falha ao configurar o serviço $serviceName com a conta $gmsaAccount." -ForegroundColor Red
+                return
+            }
+
+            Write-Host "Conta alterada com sucesso. Reiniciando o serviço..." -ForegroundColor Yellow
+            Restart-Service -Name $serviceName -Force -ErrorAction Stop
+            Start-Sleep -Seconds 3
+            $status = Get-Service -Name $serviceName
+            Write-Host "Serviço $serviceName está $($status.Status) com a gMSA." -ForegroundColor Green
+
+        } catch {
+            Write-Host "Erro ao trocar a conta do serviço $($serviceName): $_" -ForegroundColor Red
+        }
+
+    } else {
+        Write-Host "[OK] Serviço $serviceName já está rodando com conta personalizada: $currentAccount" -ForegroundColor Green
+    }
+}
+
+# Nome dos serviços
+$svcEngine = if ($instanceName -eq "") { "MSSQLSERVER" } else { "MSSQL`$$instanceName" }
+$svcAgent  = if ($instanceName -eq "") { "SQLSERVERAGENT" } else { "SQLAgent`$$instanceName" }
+$fqGmsa    = "DC\$contaLocal"
+
+# Aplica nos dois serviços
+Set-ServiceAccountToGMSA -serviceName $svcEngine -gmsaAccount $fqGmsa
+Set-ServiceAccountToGMSA -serviceName $svcAgent  -gmsaAccount $fqGmsa
+
+
+
+"#" * 100
+Write-Host "`n[INFO] Validando e sugerindo SPN para autenticação Kerberos..."
+
+# Obtém FQDN do host
+try {
+    $fqdn = ([System.Net.Dns]::GetHostEntry($env:COMPUTERNAME)).HostName
+} catch {
+    Write-Host "Erro ao obter FQDN. Usando nome simples." -ForegroundColor Yellow
+    $fqdn = $env:COMPUTERNAME
+}
+
+# Define nome da instância e porta
+$instanceWmi = if ($instanceName -eq "") { "MSSQLSERVER" } else { $instanceName }
+$tcpPort = $null
+
+# Detecta porta real usada pela instância via T-SQL
+try {
+    $dadosConexao = Invoke-Sqlcmd -ServerInstance tcp:$SQLServer -Database master -Query @"
+SELECT protocol_type, local_net_address, local_tcp_port, client_net_address
+FROM sys.dm_exec_connections
+WHERE session_id = @@SPID
+"@ 
+
+    if ($dadosConexao -and $dadosConexao.local_tcp_port) {
+        $portaConexao = $dadosConexao.local_tcp_port
+        Write-Host "[INFO] Porta detectada via T-SQL: $portaConexao (Protocolo: $($dadosConexao.protocol_type))"
+    } else {
+        Write-Host "[ALERTA] Conexão não usa TCP ou porta não detectável. Usando 1433 como fallback." -ForegroundColor Yellow
+        $portaConexao = 1433
+    }
+} catch {
+    Write-Host "[ERRO] Falha ao detectar porta via T-SQL. Usando 1433 como fallback." -ForegroundColor Red
+    $portaConexao = 1433
+}
+
+"#" * 100
+Write-Host "`n[INFO] Verificando SPNs recomendados para a conta de serviço $gmsaConta..." -ForegroundColor Cyan
+
+$hostname = $env:COMPUTERNAME.ToUpper()
+$spnsRecomendados = @(
+    "MSSQLSvc/$($hostname)",
+    "MSSQLSvc/$($fqdn)",
+    "MSSQLSvc/$($fqdn):$($instanceWmi)",
+    "MSSQLSvc/$($fqdn):$($portaConexao)"
+)
+
+$faltandoSPNs = @()
+
+foreach ($spn in $spnsRecomendados) {
+    try {
+        $resultado = setspn -Q $spn 2>&1
+        if ($resultado -match "No such SPN" -or $resultado -match "not found") {
+            Write-Host "[FALTANDO] SPN não encontrado: $spn" -ForegroundColor Yellow
+            $faltandoSPNs += $spn
+        } elseif ($resultado -match [regex]::Escape($spn)) {
+            Write-Host "[OK] SPN já registrado: $spn" -ForegroundColor Green
+        } else {
+            Write-Host "[INDEFINIDO] Resultado inesperado ao consultar $($spn):`n$resultado" -ForegroundColor DarkYellow
+        }
+    } catch {
+        Write-Host "[ERRO] Falha ao consultar SPN $($spn):`n$($_.Exception.Message)" -ForegroundColor Red
+    }
+}
+
+if ($faltandoSPNs.Count -gt 0) {
+    Write-Host "`n-> Comando(s) sugerido(s) para criação:" -ForegroundColor Cyan
+    foreach ($spn in $faltandoSPNs) {
+        Write-Host "-> Comando: setspn -S $spn $gmsaConta" -ForegroundColor Cyan
+    }
+}
+
+
+"#" * 100
+#Write-Host "`n[INFO] inclusão da conta gMSA em "Log on as a service" $gmsaConta..." -ForegroundColor Cyan
+
+
+# Caminho para a conta gMSA
+$gmsaAccount = "DC\$contaLocal"
+
+# Verifica se o módulo necessário está disponível
+if (-not (Get-Command Get-LocalUser -ErrorAction SilentlyContinue)) {
+    Import-Module Microsoft.PowerShell.LocalAccounts
+}
+
+# Função para conceder "Log on as a service" (SeServiceLogonRight)
+function Grant-LogOnAsServiceRight {
+    param (
+        [Parameter(Mandatory)]
+        [string]$Account
+    )
+
+    # Função auxiliar para buscar o SID via API do Windows
+    function Get-SIDFromAccount {
+        param([string]$Name)
+
+        $objUser = New-Object System.Security.Principal.NTAccount($Name)
+        try {
+            $sid = $objUser.Translate([System.Security.Principal.SecurityIdentifier])
+            return $sid.Value
+        } catch {
+            # Tenta via LookupAccountName (API Win32)
+            $sidBytes = New-Object byte[] 1024
+            $sidSize = $sidBytes.Length
+            $domain = New-Object System.Text.StringBuilder 256
+            $domainLen = $domain.Capacity
+            $use = 0
+
+            $success = [Advapi32]::LookupAccountName($null, $Name, $sidBytes, [ref]$sidSize, $domain, [ref]$domainLen, [ref]$use)
+
+            if ($success) {
+                $sid = New-Object System.Security.Principal.SecurityIdentifier($sidBytes, 0)
+                return $sid.Value
+            } else {
+                return $null
+            }
+        }
+    }
+
+    # Define função da API Win32 (LookupAccountName)
+    Add-Type -MemberDefinition @"
+        [DllImport("advapi32.dll", SetLastError = true, CharSet = CharSet.Auto)]
+        public static extern bool LookupAccountName(
+            string lpSystemName,
+            string lpAccountName,
+            byte[] Sid,
+            ref int cbSid,
+            System.Text.StringBuilder ReferencedDomainName,
+            ref int cchReferencedDomainName,
+            ref int peUse);
+"@ -Name "Advapi32" -Namespace Win32Functions
+
+    $sid = Get-SIDFromAccount -Name $Account
+    if (-not $sid) {
+        Write-Host "[ERRO] Não foi possível obter o SID da conta $Account." -ForegroundColor Red
+        return
+    }
+
+    # Exporta política atual
+    $tempInf = "$env:TEMP\grant-logon-as-service.inf"
+    $tempSdb = "$env:TEMP\grant-logon-as-service.sdb"
+
+    secedit /export /cfg $tempInf | Out-Null
+    $lines = Get-Content $tempInf
+
+    # Atualiza SeServiceLogonRight
+    $updated = $false
+    $lines = $lines | ForEach-Object {
+        if ($_ -match '^SeServiceLogonRight\s*=') {
+            if ($_ -match $sid) {
+                Write-Host "[OK] Conta $Account já está na política 'Log on as a service'." -ForegroundColor Green
+                $updated = $true
+                $_
+            } else {
+                $_ + ",$sid"
+            }
+        } else {
+            $_
+        }
+    }
+
+    if (-not $updated) {
+        $lines += "SeServiceLogonRight = $sid"
+    }
+
+    $lines | Set-Content $tempInf -Encoding Unicode
+    secedit /configure /db $tempSdb /cfg $tempInf /areas USER_RIGHTS
+
+    if ($LASTEXITCODE -eq 0) {
+        Write-Host "[OK] Conta $Account adicionada com sucesso à política 'Log on as a service'." -ForegroundColor Cyan
+    } else {
+        Write-Host "[ERRO] Falha ao aplicar política de segurança local." -ForegroundColor Red
+    }
+
+    Remove-Item $tempInf, $tempSdb -Force -ErrorAction SilentlyContinue
+}
+
+#Grant-LogOnAsServiceRight -Account "DC\$accountName$"
