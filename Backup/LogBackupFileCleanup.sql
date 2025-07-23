@@ -59,7 +59,7 @@ BEGIN
         DECLARE @date NVARCHAR(20), @time NVARCHAR(20), @ampm NVARCHAR(10), @filename NVARCHAR(260), @fullpath NVARCHAR(1000);
         DECLARE line_cursor CURSOR FOR 
             SELECT line FROM @output 
-            WHERE line LIKE ' %:%.trn';
+            WHERE line LIKE '%.trn';
 
         OPEN line_cursor;
         FETCH NEXT FROM line_cursor INTO @line;
