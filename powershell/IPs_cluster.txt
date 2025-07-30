@@ -1,0 +1,11 @@
+
+Ver IPs locais via PowerShell (em todos os nós):
+Get-NetIPAddress -AddressFamily IPv4 | Where-Object {$_.IPAddress -like "10.*"} | Select-Object IPAddress, InterfaceAlias
+
+
+Ver interfaces visíveis ao cluster:
+Get-ClusterNetworkInterface | Where-Object {$_.State -eq "Up"} | Select-Object NodeName, Network, InterfaceName, Address
+
+
+Ver sub-rede associada ao IP Cluster:
+Get-ClusterResource "PSQLMIRDB_AG_10.157.188.13" | Get-ClusterParameter | Where-Object {$_.Name -eq "Address"}
