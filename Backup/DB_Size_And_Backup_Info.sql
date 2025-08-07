@@ -1,3 +1,5 @@
+-- bancos em SIMPLE vão aparecer com LastLogBackup = NULL por padrão. Se quiser incluir copy_only, basta remover o filtro AND b.is_copy_only = 0.
+
 SELECT 
     db.name AS Name,
     db.state_desc AS Status,
