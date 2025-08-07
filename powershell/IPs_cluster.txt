@@ -13,5 +13,6 @@ Get-ClusterResource "PSQLMIRDB_AG_10.157.188.13" | Get-ClusterParameter | Where-
 
 Get-NetAdapterAdvancedProperty -DisplayName 'Jumbo Packet'
 Get-NetAdapterAdvancedProperty -DisplayName 'Small Rx Buffers'
-Get-NetAdapterAdvancedProperty -DisplayName 'JRx Ring #1 Size'
+Get-NetAdapterAdvancedProperty -DisplayName 'Rx Ring #1 Size'
+
 
