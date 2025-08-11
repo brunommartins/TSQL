@@ -1,0 +1,26 @@
+
+
+
+ Get-Volume | Where-Object { $_.FileSystemLabel -like '*xxxx*' } | ForEach-Object {
+    [PSCustomObject]@{
+        Label         = $_.FileSystemLabel
+        Path          = $_.Path
+        Size_TB       = '{0:N2}' -f ($_.Size / 1TB)
+        Free_Space_GB = '{0:N2}' -f ($_.SizeRemaining / 1GB)
+        Used_Percent  = '{0:N4}' -f (100 * (1 - ($_.SizeRemaining / $_.Size)))
+    }
+}
+
+
+
+Get-Volume | Where-Object { $_.DriveType -eq 'Fixed' -and $_.FileSystem -ne $null } | ForEach-Object {
+    [PSCustomObject]@{
+        Label         = $_.FileSystemLabel
+        DriveLetter   = $_.DriveLetter
+        Path          = $_.Path
+        Size_TB       = '{0:N2}' -f ($_.Size / 1TB)
+        Free_GB       = '{0:N2}' -f ($_.SizeRemaining / 1GB)
+        Used_Percent  = '{0:N2}' -f (100 * (1 - ($_.SizeRemaining / $_.Size)))
+    }
+} | Sort-Object label -Descending | Format-Table -AutoSize
+
