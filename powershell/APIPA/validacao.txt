@@ -1,0 +1,22 @@
+# Caminho base das interfaces de rede
+$basePath = 'HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces'
+
+# Obtém todas as interfaces
+$interfaces = Get-ChildItem -Path $basePath
+
+foreach ($iface in $interfaces) {
+    $ifaceName = $iface.PSChildName
+    $ifacePath = Join-Path $basePath $ifaceName
+    $propName = 'IPAutoconfigurationEnabled'
+
+    # Verifica se a propriedade já existe
+    $currentValue = Get-ItemProperty -Path $ifacePath -Name $propName -ErrorAction SilentlyContinue | Select-Object -ExpandProperty $propName -ErrorAction SilentlyContinue
+
+    if ($null -eq $currentValue -or $currentValue -ne 0) {
+        # Cria ou atualiza a propriedade para desabilitar APIPA
+        New-ItemProperty -Path $ifacePath -Name $propName -Value 0 -PropertyType DWord -Force | Out-Null
+        Write-Host "APIPA desabilitado na interface $ifaceName"
+    } else {
+        Write-Host "APIPA já está desabilitado na interface $ifaceName"
+    }
+}
