@@ -1,0 +1,31 @@
+<#
+    Script: Remove-PersistentRoutes.ps1
+    Autor: Bruno Martins
+    Descrição: Remove rotas persistentes específicas configuradas em um servidor Windows.
+    Uso:
+        - Edite a lista $routeList conforme necessário com os pares IP/Máscara de rede.
+        - Execute o script com privilégios de administrador.
+
+    Observação:
+        - Este script remove rotas persistentes definidas manualmente ou por script.
+        - Recomenda-se executar `route print` antes e depois para validar as alterações.
+#>
+
+# Exibe as rotas atuais (opcional)
+route print
+
+# Lista de rotas a serem removidas
+$routeList = @(
+    "10.1.1.1 255.255.255.192",
+    "10.2.23.1 255.255.255.255",
+    "10.2.45.4 255.255.255.255"
+)
+
+# Loop para remover cada rota especificada
+foreach ($route in $routeList) {
+    $parts = $route -split "\s+"
+    $network = $parts[0]
+    $mask = $parts[1]
+    Write-Output "Deletando rota: $network mask $mask"
+    route delete $network mask $mask
+}
