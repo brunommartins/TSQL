@@ -1,0 +1,24 @@
+Get-CimInstance -ClassName Win32_Volume -Filter "FileSystem='NTFS'" | Select-Object Name, Label, BlockSize | Format-Table -AutoSize
+
+
+Format-Volume -DriveLetter D -FileSystem NTFS -AllocationUnitSize 65536 -NewFileSystemLabel DADOS -UseLargeFRS;
+Format-Volume -DriveLetter E -FileSystem NTFS -AllocationUnitSize 65536 -NewFileSystemLabel LOG -UseLargeFRS;
+Format-Volume -DriveLetter F -FileSystem NTFS -AllocationUnitSize 65536 -NewFileSystemLabel TEMPDB -UseLargeFRS;
+Format-Volume -DriveLetter G -FileSystem NTFS -AllocationUnitSize 65536 -NewFileSystemLabel BACKUP -UseLargeFRS;
+
+
+
+
+New-Item -Path "D:\" -Name "MSSQL\DADOS" -ItemType "directory"
+New-Item -Path "E:\" -Name "MSSQL\LOG" -ItemType "directory"
+New-Item -Path "E:\" -Name "MSSQL\Jobs_log" -ItemType "directory"
+New-Item -Path "F:\" -Name "MSSQL\TEMPDB" -ItemType "directory"
+New-Item -Path "G:\" -Name "MSSQL\BACKUP" -ItemType "directory"
+
+
+
+
+
+Format-Volume -DriveLetter O -FileSystem NTFS -AllocationUnitSize 65536 -NewFileSystemLabel DADOS_EVS1 -UseLargeFRS;
+Format-Volume -DriveLetter P -FileSystem NTFS -AllocationUnitSize 65536 -NewFileSystemLabel DADOS_EVS2 -UseLargeFRS;
+
