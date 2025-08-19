@@ -1,0 +1,22 @@
+<# 
+  Ajusta RegisterAllProvidersIP e HostRecordTTL de um recurso "Network Name" (ex.: Listener de AG)
+   
+#>
+#Mostra os objectos
+Get-ClusterResource | where ResourceType -eq "Network Name" | Get-ClusterParameter | where-Object { $_.Name -eq "RegisterAllProvidersIP" -or $_.Name -eq "HostRecordTTL" }
+
+$ResourceName = "AG_TESTE"
+
+
+# Mostra valores atuais
+Write-Host "Lendo parâmetros atuais..."
+Get-ClusterResource -Name $ResourceName | Get-ClusterParameter RegisterAllProvidersIP,HostRecordTTL
+
+# Aplica
+Write-Host "Aplicando mudanças em '$ResourceName'..."
+Get-ClusterResource -Name $ResourceName | Set-ClusterParameter RegisterAllProvidersIP $RAPI
+Get-ClusterResource -Name $ResourceName | Set-ClusterParameter HostRecordTTL $TTL
+
+# Confere após
+Write-Host "Novos valores:"
+Get-ClusterResource -Name $ResourceName | Get-ClusterParameter RegisterAllProvidersIP,HostRecordTTL
