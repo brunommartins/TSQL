@@ -11,6 +11,16 @@ FROM sys.dm_db_log_info(42)
 GROUP BY file_id, vlf_active;
 
 
+SELECT d.name AS database_name,
+       COUNT(*) AS total_vlfs,
+       SUM(CASE WHEN li.vlf_active=1 THEN 1 ELSE 0 END) AS active_vlfs,
+       CAST(100.0*SUM(CASE WHEN li.vlf_active=1 THEN 1 ELSE 0 END)/NULLIF(COUNT(*),0) AS decimal(5,2)) AS pct_active
+FROM sys.databases d
+CROSS APPLY sys.dm_db_log_info(d.database_id) li
+WHERE d.state = 0
+GROUP BY d.name
+ORDER BY total_vlfs DESC, d.name;
+
 
 /* ===========================================================
    VLF Overview (per DB and per log file)
