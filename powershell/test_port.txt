@@ -1,0 +1,14 @@
+$coletores = @('server')
+$portas_coletores = @(9500, 9501, 9800, 9801, 8445, 8443, 8446, 8081)
+$portas_cm = @()
+$resultado = @()
+
+foreach($col in $coletores)
+    {
+        foreach($pc in $portas_coletores)
+        {
+            $resultado += Test-NetConnection -ComputerName $col -port $pc | Select-Object ComputerName, RemotePort, SourceAddress, TcpTestSucceeded
+        }
+    }
+
+return $resultado | Select-Object ComputerName, RemotePort, SourceAddress, TcpTestSucceeded | ft
