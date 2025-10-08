@@ -1,0 +1,19 @@
+Get-WmiObject Win32_Volume |
+Where-Object { $_.DriveLetter -eq $null -and $_.DriveType -eq 3 } |
+Select Name, Label, @{N='Size(GB)';E={[math]::Round($_.Capacity/1GB,2)}}, @{N='Free(GB)';E={[math]::Round($_.FreeSpace/1GB,2)}}
+
+
+
+Get-WmiObject Win32_Volume |
+Where-Object { $_.DriveType -eq 3 -and $_.Name -ne $null } |
+Select-Object `
+    @{Name='MountPoint';Expression={$_.Name}},
+    @{Name='Label';Expression={$_.Label}},
+    @{Name='FileSystem';Expression={$_.FileSystem}},
+    @{Name='Size(GB)';Expression={[math]::Round($_.Capacity/1GB,2)}},
+    @{Name='Free(GB)';Expression={[math]::Round($_.FreeSpace/1GB,2)}},
+    @{Name='Used(%)';Expression={
+        if ($_.Capacity -gt 0) {
+            [math]::Round((1 - ($_.FreeSpace / $_.Capacity)) * 100, 1)
+        } else { 0 }
+    }} | Sort-Object 'MountPoint' | Format-Table -AutoSize
