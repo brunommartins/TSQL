@@ -15,7 +15,7 @@ foreach ($servidor in $servidores) {
         $instace = "MSSQLSERVER"   #alterar o nome da instância que será executado
         $name += "DIAG$"+ $instace
         		
-        $conta = "BCNET\gMSA_DSQL_SPI$" #alterar o nome da conta de serviço
+        $conta = "domain\xxxx$" #alterar o nome da conta de serviço
    
         # 1 - após copiar a pasta, executar o comando a baixo
         #sqldiag.exe /R /A $instace /I "S:\SQLDIAG\bin\pssdiag.XML" /P "S:\SQLDIAG\bin" /O "S:\SQLDIAG\Output\SQLDiagOutput" /N2 /C1
