@@ -1,0 +1,74 @@
+
+#Colar a pasta no diretorio padrão S:, caso não tenha o disco S, validar outro disco para receber. exemplo G:
+#procurar arquivo pssdiag.xml alterar o nome da instância, procurar a seguinte linha
+#S:\SQLDIAG\bin\pssdiag.XML
+#  <Instance name="IPIXXXPRO" user="" windowsauth="true" ssver="16">
+
+
+    $servidores = @("XXX","XXX2")
+# Loop para rodar o comando em cada servidor
+foreach ($servidor in $servidores) {
+    Invoke-Command -ComputerName $servidor -ScriptBlock {
+
+
+
+        $instace = "MSSQLSERVER"   #alterar o nome da instância que será executado
+        $name += "DIAG$"+ $instace
+        		
+        $conta = "BCNET\gMSA_DSQL_SPI$" #alterar o nome da conta de serviço
+   
+        # 1 - após copiar a pasta, executar o comando a baixo
+        #sqldiag.exe /R /A $instace /I "S:\SQLDIAG\bin\pssdiag.XML" /P "S:\SQLDIAG\bin" /O "S:\SQLDIAG\Output\SQLDiagOutput" /N2 /C1
+
+        # 2 -valide se serviço foi criado com sucesso
+        #Get-Service -Displayname $name
+
+        # 3 - realizar as alterações do serviço 
+        #Set-Service -Name $name -StartupType Automatic 
+
+
+        #alterar os valores conforme o ambiente
+        #sc.exe  --% config "DIAG$MSSQLSERVER" obj= "BCNET\gMSA_DSQL_SPI$" password= "" type= own   
+
+        
+        #4 - adicionar a conta de serviço do sql server como Admin.
+
+        #Add-LocalGroupMember -Group "Administrators" -Member $conta
+        #Get-LocalGroupMember -name Administrators  | Select-Object name 
+        #reiniciar o servidor após colocar o usuário como admin do servidor.
+       
+        #pega o status do serviço
+        #Get-Service -Displayname $name
+                       
+        #inicia o serviço
+        #START-Service -Name $name
+
+        #se precisar para o serviço 
+        #Stop-Service -Name $name
+        
+        #START-Service -Name $name
+        Get-Service $name | Sort-Object status
+    }
+} 
+
+
+Descobrir o ServiceName exato (não o Display Name)
+# Procura serviços que tenham $ no nome
+Get-Service | Where-Object { $_.Name -like '*$*' } | Select Name,DisplayName,Status
+
+# ou, se souber parte do nome:
+Get-Service -Name '*SQL*' | Select Name,DisplayName,Status
+
+
+Parar e deletar
+
+$svc = 'MSSQL$INSTANCENAME'   # EXEMPLO — troque pelo nome exato
+
+Stop-Service -Name $svc -Force -ErrorAction SilentlyContinue
+Set-Service  -Name $svc -StartupType Disabled
+
+# Use sc.exe (não use o alias 'sc' do PowerShell)
+sc.exe delete $svc
+
+
+Se rodar dentro do PowerShell com aspas duplas, tipo "MSSQL$INSTANCENAME", o $INSTANCENAME vira variável e quebra o comando. Por isso usamos 'MSSQL$INSTANCENAME'.
