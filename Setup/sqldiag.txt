@@ -28,7 +28,7 @@ foreach ($servidor in $servidores) {
 
 
         #alterar os valores conforme o ambiente
-        #sc.exe  --% config "DIAG$MSSQLSERVER" obj= "BCNET\gMSA_DSQL_SPI$" password= "" type= own   
+        #sc.exe  --% config "DIAG$MSSQLSERVER" obj= "domain\xxxx$" password= "" type= own   
 
         
         #4 - adicionar a conta de serviço do sql server como Admin.
