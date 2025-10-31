@@ -1,0 +1,1 @@
+	Format-Volume -DriveLetter Y -FileSystem NTFS -AllocationUnitSize 65536 -NewFileSystemLabel diskname -UseLargeFRS;	
