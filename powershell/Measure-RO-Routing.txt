@@ -1,0 +1,114 @@
+param(
+  [Parameter(Mandatory=$true)]
+  [string]$Listener = "lstn-server.dominio",                  # ex: "server-RO-LISTENER.seu.dominio:1433" (":" ou ",")
+  [string]$Database = "bDB",
+  [int]$Iter = 20,                    # número de amostras
+  [int]$TimeoutSec = 5,
+  [int]$SleepMs = 200,                # pausa entre tentativas
+  [string]$SecondaryDirect = $null    # ex: "servername:1433" (opcional; baseline sem roteamento)
+)
+
+
+function Summ($arr){
+  if (-not $arr -or $arr.Count -eq 0) { return $null }
+  $a = $arr | Sort-Object
+  $avg = [math]::Round(($a | Measure-Object -Average).Average,2)
+  $p50 = $a[[int]([math]::Floor(0.50*($a.Count-1)))]
+  $p95 = $a[[int]([math]::Floor(0.95*($a.Count-1)))]
+  return [pscustomobject]@{ n=$a.Count; min=$a[0]; p50=$p50; avg=$avg; p95=$p95; max=$a[-1] }
+}
+
+$roS = Summ $ro
+$baS = if ($base) { Summ $base } else { $null }
+
+Write-Host ""
+Write-Host "═══════════════════════════════════════════════════════" -ForegroundColor Cyan
+Write-Host "   TESTE DE REDIRECIONAMENTO READ-ONLY ROUTING (AG)" -ForegroundColor Cyan
+Write-Host "═══════════════════════════════════════════════════════" -ForegroundColor Cyan
+Write-Host ""
+Write-Host ("Listener : {0}" -f $Listener)
+Write-Host ("Banco     : {0}" -f $Database)
+Write-Host ""
+
+if ($roS) {
+    Write-Host "📊 Resultados da conexão via LISTENER (ApplicationIntent=ReadOnly):" -ForegroundColor Yellow
+    Write-Host ("  - Amostras:           {0}" -f $roS.n)
+    Write-Host ("  - Mínimo:             {0} ms" -f $roS.min)
+    Write-Host ("  - Mediana (p50):      {0} ms" -f $roS.p50)
+    Write-Host ("  - Média:              {0} ms" -f $roS.avg)
+    Write-Host ("  - Percentil 95 (p95): {0} ms" -f $roS.p95)
+    Write-Host ("  - Máximo:             {0} ms" -f $roS.max)
+    Write-Host ""
+}
+
+if ($baS) {
+    Write-Host "📈 Baseline de conexão DIRETA na réplica de leitura:" -ForegroundColor Yellow
+    Write-Host ("  - Amostras:           {0}" -f $baS.n)
+    Write-Host ("  - Média:              {0} ms" -f $baS.avg)
+    Write-Host ""
+
+    $delta = [math]::Round($roS.avg - $baS.avg,2)
+    $impact = if ($delta -le 0) { "Nenhum impacto mensurável" } else { "$delta ms adicionais (redirecionamento)" }
+    Write-Host ("🔍 Estimativa de custo do roteamento: {0}" -f $impact) -ForegroundColor Green
+}
+
+Write-Host ""
+Write-Host "Legenda:" -ForegroundColor DarkCyan
+Write-Host "  p50  → 50% das conexões foram mais rápidas que esse valor (mediana)"
+Write-Host "  p95  → 95% das conexões ficaram abaixo desse tempo"
+Write-Host "  Todas as métricas estão em MILISSEGUNDOS (ms)."
+Write-Host ""
+Write-Host "═══════════════════════════════════════════════════════" -ForegroundColor Cyan
+
+
+
+function Summ($arr){
+  if (-not $arr -or $arr.Count -eq 0) { return $null }
+  $a = $arr | Sort-Object
+  $avg = [math]::Round(($a | Measure-Object -Average).Average,2)
+  $p50 = $a[[int]([math]::Floor(0.50*($a.Count-1)))]
+  $p95 = $a[[int]([math]::Floor(0.95*($a.Count-1)))]
+  return [pscustomobject]@{ n=$a.Count; min=$a[0]; p50=$p50; avg=$avg; p95=$p95; max=$a[-1] }
+}
+
+$roS = Summ $ro
+$baS = if ($base) { Summ $base } else { $null }
+
+Write-Host ""
+Write-Host "═══════════════════════════════════════════════════════" -ForegroundColor Cyan
+Write-Host "   TESTE DE REDIRECIONAMENTO READ-ONLY ROUTING (AG)" -ForegroundColor Cyan
+Write-Host "═══════════════════════════════════════════════════════" -ForegroundColor Cyan
+Write-Host ""
+Write-Host ("Listener : {0}" -f $Listener)
+Write-Host ("Banco     : {0}" -f $Database)
+Write-Host ""
+
+if ($roS) {
+    Write-Host "📊 Resultados da conexão via LISTENER (ApplicationIntent=ReadOnly):" -ForegroundColor Yellow
+    Write-Host ("  - Amostras:           {0}" -f $roS.n)
+    Write-Host ("  - Mínimo:             {0} ms" -f $roS.min)
+    Write-Host ("  - Mediana (p50):      {0} ms" -f $roS.p50)
+    Write-Host ("  - Média:              {0} ms" -f $roS.avg)
+    Write-Host ("  - Percentil 95 (p95): {0} ms" -f $roS.p95)
+    Write-Host ("  - Máximo:             {0} ms" -f $roS.max)
+    Write-Host ""
+}
+
+if ($baS) {
+    Write-Host "📈 Baseline de conexão DIRETA na réplica de leitura:" -ForegroundColor Yellow
+    Write-Host ("  - Amostras:           {0}" -f $baS.n)
+    Write-Host ("  - Média:              {0} ms" -f $baS.avg)
+    Write-Host ""
+
+    $delta = [math]::Round($roS.avg - $baS.avg,2)
+    $impact = if ($delta -le 0) { "Nenhum impacto mensurável" } else { "$delta ms adicionais (redirecionamento)" }
+    Write-Host ("🔍 Estimativa de custo do roteamento: {0}" -f $impact) -ForegroundColor Green
+}
+
+Write-Host ""
+Write-Host "Legenda:" -ForegroundColor DarkCyan
+Write-Host "  p50  → 50% das conexões foram mais rápidas que esse valor (mediana)"
+Write-Host "  p95  → 95% das conexões ficaram abaixo desse tempo"
+Write-Host "  Todas as métricas estão em MILISSEGUNDOS (ms)."
+Write-Host ""
+Write-Host "═══════════════════════════════════════════════════════" -ForegroundColor Cyan
