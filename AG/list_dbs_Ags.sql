@@ -46,7 +46,7 @@ LEFT JOIN sys.dm_hadr_availability_group_states ags
 LEFT JOIN sys.dm_hadr_cluster_members cm
   ON cm.member_name = r.replica_server_name
 -- Opcional: apenas bancos de usuário
- WHERE adc.database_name IN ('PositivoPayments')
+ WHERE adc.database_name IN ('dbname')
 ORDER BY
     ag.name,
     adc.database_name,
