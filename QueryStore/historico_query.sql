@@ -36,3 +36,26 @@ INNER JOIN sys.query_store_runtime_stats_interval I ON S.runtime_stats_interval_
   -- and S.avg_rowcount > 100
 ORDER BY I.start_time DESC
 
+
+
+-- desempenho de uma query especifica linhas por ms
+DECLARE @OBJID INT=object_id('MPI.InsertVMsgMensagem');
+SELECT DB_NAME() DBNAME/*, Q.query_id */, left(convert(varchar, I.start_time AT TIME ZONE 'Tocantins Standard Time',120),13)+':00' AS start_time
+    ,SUM(S.count_executions) AS count_executions
+       ,AVG(S.avg_duration / 1000) AS avg_duration_ms  
+    ,SUM(S.avg_duration / 1000 * S.count_executions)/1000 as total_duration_s
+       ,AVG(S.avg_rowcount) AVG_ROWCOUNT
+    ,SUM(S.avg_rowcount * S.count_executions) as total_rowcount
+       ,AVG(S.avg_cpu_time / 1000) AS avg_cpu_time_ms  
+    ,SUM(S.avg_cpu_time / 1000 * S.count_executions)/1000 as total_cpu_time_s
+    ,SUM(S.avg_rowcount * S.count_executions)/SUM(S.avg_duration / 1000 * S.count_executions) as rows_per_ms_duration
+    ,SUM(S.avg_rowcount * S.count_executions)/SUM(S.avg_cpu_time / 1000 * S.count_executions) as rows_per_ms_cpu
+FROM sys.query_store_query Q
+INNER JOIN sys.query_store_query_text T ON Q.query_text_id = T.query_text_id
+INNER JOIN sys.query_store_plan P ON Q.query_id = P.query_id
+INNER JOIN sys.query_store_runtime_stats S ON P.plan_id = S.plan_id
+INNER JOIN sys.query_store_runtime_stats_interval I ON S.runtime_stats_interval_id = I.runtime_stats_interval_id
+WHERE Q.object_id=@OBJID and S.execution_type_desc='Regular'
+GROUP BY /*Q.query_id,*/ left(convert(varchar, I.start_time AT TIME ZONE 'Tocantins Standard Time',120),13)
+HAVING SUM(S.avg_rowcount * S.count_executions)>2000000
+order by 2 DESC;
