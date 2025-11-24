@@ -1,0 +1,9 @@
+
+/****** Object:  PartitionFunction [PF_DT]    Script Date: 11/24/2025 3:09:57 PM ******/
+CREATE PARTITION FUNCTION [PF_DT](datetime2(3)) AS RANGE RIGHT FOR VALUES (N'2025-11-02T00:00:00.000', N'2025-11-03T00:00:00.000', N'2025-11-04T00:00:00.000')
+
+GO
+
+/****** Object:  PartitionScheme [PS_DT]    Script Date: 11/24/2025 3:06:46 PM ******/
+CREATE PARTITION SCHEME [PS_DT] AS PARTITION [PF_DT] TO ([TAB_PAT], [TAB_PAT], [TAB_PAT])
+GO
