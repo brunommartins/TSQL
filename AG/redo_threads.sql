@@ -1,3 +1,29 @@
+/*
+  ===================================================================
+  Script:        redo_threads.sql
+  Autor:         Bruno M. Martins
+  Data:          yyyy-mm-dd (versão inicial)
+  Versão:        v0.1 (ou conforme controle)
+  Ambiente:      SQL Server com Microsoft SQL Server Always On Availability Groups
+  Função:        Coleta métricas de *redo threads* em réplicas secundárias de AG 
+  Objetivo:      Permitir monitoramento de threads de redo, fila de redo (redo_queue_size), taxas de aplicação (redo_rate), waits (ex: PARALLEL_REDO_TRAN_TURN) para análise de desempenho e gargalos de réplicas.
+  
+  Pré-requisitos:
+     - Instâncias habilitadas para Always On Availability Groups
+     - Permissões para consultar DMVs como sys.dm_hadr_database_replica_states, sys.dm_hadr_db_threads, sys.dm_exec_requests, etc.
+     - Script executado preferencialmente na réplica secundária ou na primária com contexto is_local=0 para secundária.
+  
+  Uso:          Execute manualmente ou agendado (SQL Agent) com periodicidade definida (ex: 5 min) para capturar tendência e alertas.
+  
+  Histórico:
+     v0.1 – yyyy-mm-dd – Script inicial.
+     v0.2 – yyyy-mm-dd – Adicionada verificação de waits PARALLEL_REDO_TRAN_TURN.
+     …  
+  ===================================================================
+*/
+
+
+
 select *--db_name(database_id) as dbname, command, session_id 
 from sys.dm_exec_requests
 where command in('PARALLEL REDO HELP TASK', 'PARALLEL REDO TASK', 'DB STARTUP')
