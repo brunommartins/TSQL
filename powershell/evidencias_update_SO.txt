@@ -1,19 +1,55 @@
 # ================================
+# CONFIGURAÇÕES
+# ================================
+$Server = $env:COMPUTERNAME
+$LogFile = "C:\Temp\Evidencias_$Server.log"
+$DebugMode = $true  # coloque $false para desligar o debug
+
+Function Write-Log {
+    param([string]$msg)
+    if ($DebugMode) {
+        $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+        Add-Content -Path $LogFile -Value "[$timestamp] $msg"
+    }
+}
+
+Write-Host "`n=== COLETAR ÚLTIMAS ATUALIZAÇÕES DO WINDOWS ===" -ForegroundColor Cyan
+Write-Log "Iniciando coleta de atualizações do Windows."
+
+# ================================
 # COLETAR ÚLTIMAS ATUALIZAÇÕES DO WINDOWS
 # ================================
-Write-Host "=== WINDOWS UPDATES ===" -ForegroundColor Cyan
+try {
+    $updates = Get-HotFix |
+        Sort-Object InstalledOn -Descending |
+        Select-Object -First 4 @{Name="Servidor"; Expression={$Server}}, Source, Description, HotFixID, InstalledOn
 
-# Lista as últimas 2 atualizações instaladas
-$Server = $env:COMPUTERNAME
-Get-HotFix |
-    Sort-Object InstalledOn -Descending |
-    Select-Object -First 4 @{Name="Servidor";Expression={$Server}},Source, Description, HotFixID, InstalledOn |
-    Format-Table -AutoSize
+    Write-Log "Atualizações coletadas com sucesso: $($updates.Count) registros."
 
+    $updates | Format-Table -AutoSize
+}
+catch {
+    Write-Host "Erro ao coletar atualizações: $_" -ForegroundColor Red
+    Write-Log "Erro ao coletar atualizações: $_"
+}
 
 # ================================
 # COLETAR VERSÃO DO SQL SERVER
 # ================================
 Write-Host "`n=== SQL SERVER VERSION ===" -ForegroundColor Cyan
+Write-Log "Iniciando coleta da versão do SQL Server."
 
-Invoke-Sqlcmd -Query "SELECT @@servername, @@VERSION" -ServerInstance "localhost"
+try {
+    $sqlInfo = Invoke-Sqlcmd -Query "SELECT @@servername AS Servidor, @@VERSION AS Versao" -ServerInstance "localhost"
+
+    Write-Log "Versão SQL coletada: $($sqlInfo.Servidor)"
+
+    $sqlInfo | Format-Table -AutoSize
+}
+catch {
+    Write-Host "Erro ao coletar versão do SQL Server: $_" -ForegroundColor Red
+    Write-Log "Erro ao coletar versão do SQL Server: $_"
+}
+
+Write-Log "Processo concluído."
+Write-Host "`nColeta finalizada." -ForegroundColor Green
