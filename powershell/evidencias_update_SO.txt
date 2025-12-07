@@ -1,0 +1,19 @@
+# ================================
+# COLETAR ÚLTIMAS ATUALIZAÇÕES DO WINDOWS
+# ================================
+Write-Host "=== WINDOWS UPDATES ===" -ForegroundColor Cyan
+
+# Lista as últimas 2 atualizações instaladas
+$Server = $env:COMPUTERNAME
+Get-HotFix |
+    Sort-Object InstalledOn -Descending |
+    Select-Object -First 4 @{Name="Servidor";Expression={$Server}},Source, Description, HotFixID, InstalledOn |
+    Format-Table -AutoSize
+
+
+# ================================
+# COLETAR VERSÃO DO SQL SERVER
+# ================================
+Write-Host "`n=== SQL SERVER VERSION ===" -ForegroundColor Cyan
+
+Invoke-Sqlcmd -Query "SELECT @@servername, @@VERSION" -ServerInstance "localhost"
