@@ -34,22 +34,50 @@ catch {
 }
 
 # ================================
-# COLETAR VERSÃO DO SQL SERVER
+# COLETAR VERSÃO DO SQL SERVER (TODAS AS INSTÂNCIAS LOCAIS)
 # ================================
 Write-Host "`n=== SQL SERVER VERSION ===" -ForegroundColor Cyan
-Write-Log "Iniciando coleta da versão do SQL Server."
+Write-Log "Iniciando coleta da versão do SQL Server (todas as instâncias locais)."
 
-try {
-    $sqlInfo = Invoke-Sqlcmd -Query "SELECT @@servername AS Servidor, @@VERSION AS Versao" -ServerInstance "localhost"
+# Lê instâncias do registro
+$instanceKey = 'HKLM:\SOFTWARE\Microsoft\Microsoft SQL Server\Instance Names\SQL'
 
-    Write-Log "Versão SQL coletada: $($sqlInfo.Servidor)"
+if (Test-Path $instanceKey) {
+    $instances = (Get-Item $instanceKey).GetValueNames()
 
-    $sqlInfo | Format-Table -AutoSize
+    foreach ($inst in $instances) {
+        if ($inst -eq 'MSSQLSERVER') {
+            # Instância default
+            $serverInstance = $env:COMPUTERNAME
+        }
+        else {
+            # Instância nomeada
+            $serverInstance = "$env:COMPUTERNAME\$inst"
+        }
+
+        Write-Host "Coletando versão da instância: $serverInstance" -ForegroundColor Yellow
+        Write-Log "Coletando versão da instância: $serverInstance"
+
+        try {
+            $sqlInfo = Invoke-Sqlcmd -Query "
+                SELECT
+                    @@SERVERNAME AS Servidor,
+                    @@VERSION   AS Versao
+            " -ServerInstance $serverInstance -ErrorAction Stop
+
+            Write-Log "Versão SQL coletada com sucesso para $serverInstance."
+            $sqlInfo | Format-Table -AutoSize
+        }
+        catch {
+            Write-Host "Erro ao coletar versão do SQL Server em $serverInstance : $_" -ForegroundColor Red
+            Write-Log "Erro ao coletar versão do SQL Server em $serverInstance : $_"
+        }
+    }
 }
-catch {
-    Write-Host "Erro ao coletar versão do SQL Server: $_" -ForegroundColor Red
-    Write-Log "Erro ao coletar versão do SQL Server: $_"
+else {
+    Write-Host "Nenhuma instância SQL encontrada no registro." -ForegroundColor Red
+    Write-Log "Chave de instância SQL não encontrada: $instanceKey"
 }
 
-Write-Log "Processo concluído."
+Write-Log "Processo de coleta de versão do SQL Server concluído."
 Write-Host "`nColeta finalizada." -ForegroundColor Green
