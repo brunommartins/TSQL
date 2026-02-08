@@ -79,5 +79,5 @@ SELECT
         ELSE 'INSUFICIENTE'
     END AS DiskEnough_ForMaxGrowth
 FROM GrowthCalc
- where DatabaseName = 'Controly' 
+ where DatabaseName = 'seuDB' 
 ORDER BY DatabaseName, FileType, LogicalName;
