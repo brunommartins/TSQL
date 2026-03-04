@@ -17,3 +17,63 @@ Select-Object `
             [math]::Round((1 - ($_.FreeSpace / $_.Capacity)) * 100, 1)
         } else { 0 }
     }} | Sort-Object 'MountPoint' | Format-Table -AutoSize
+
+
+
+
+PS C:\Windows\system32> Get-CimInstance Win32_Volume |
+Where-Object { $_.DriveType -eq 3 } |
+Select-Object `
+    @{Name="Nome_Logico";Expression={$_.Name}},
+    @{Name="DriveLetter";Expression={$_.DriveLetter}},
+    @{Name="Label";Expression={$_.Label}},
+    @{Name="FileSystem";Expression={$_.FileSystem}},
+    @{Name="Capacidade_GB";Expression={[math]::Round($_.Capacity/1GB,2)}},
+    @{Name="Livre_GB";Expression={[math]::Round($_.FreeSpace/1GB,2)}},
+    @{Name="Percent_Livre";Expression={[math]::Round(($_.FreeSpace/$_.Capacity)*100,2)}}
+
+
+
+
+
+$Raiz = 'G:\Data\'
+
+Get-CimInstance Win32_Volume -Filter "DriveType=3" |
+Where-Object {
+    ($_.Name -like "$Raiz*") -or ($_.DriveLetter -ne $null)
+} |
+ForEach-Object {
+    $vol = $_
+
+    $diskNumber = $null
+    $model = $null
+    $serial = $null
+
+    try {
+        $part = Get-CimAssociatedInstance -InputObject $vol -Association Win32_VolumeToDiskPartition -ErrorAction Stop | Select-Object -First 1
+        if ($part) {
+            $disk = Get-CimAssociatedInstance -InputObject $part -Association Win32_DiskDriveToDiskPartition -ErrorAction Stop | Select-Object -First 1
+            if ($disk) {
+                $model = $disk.Model
+                $serial = $disk.SerialNumber
+                $diskNumber = $disk.Index
+            }
+        }
+    } catch {
+        # Algumas storage stacks não retornam essas associações via WMI
+    }
+
+    [pscustomobject]@{
+        Nome_Logico    = $vol.Name
+        DriveLetter    = $vol.DriveLetter
+        Label          = $vol.Label
+        FileSystem     = $vol.FileSystem
+        Capacidade_GB  = [math]::Round($vol.Capacity/1GB,2)
+        Livre_GB       = [math]::Round($vol.FreeSpace/1GB,2)
+        Percent_Livre  = if($vol.Capacity){[math]::Round(($vol.FreeSpace/$vol.Capacity)*100,2)} else {0}
+        DiskNumber     = $diskNumber
+        DiskModel      = $model
+        DiskSerial     = $serial
+    }
+} |
+Sort-Object Nome_Logico
