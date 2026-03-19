@@ -1,0 +1,12 @@
+# Example Wireshark filters
+
+tcp.port == 57058
+
+# Filter by IP
+ip.addr == 172.30.248.63
+
+# Retransmissions
+tcp.analysis.retransmission
+
+# Slow connections
+tcp.analysis.ack_rtt
