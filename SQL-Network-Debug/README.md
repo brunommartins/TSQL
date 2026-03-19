@@ -76,3 +76,75 @@ LEFT JOIN sys.dm_os_threads th
 
 WHERE s.is_user_process = 1
 ORDER BY r.cpu_time DESC, s.reads DESC
+
+
+
+🎯 Uso prático
+1. Identificar sessão problemática
+
+CPU alta
+
+wait elevado
+
+volume alto de reads/writes
+
+2. Capturar dados da conexão
+client_ip
+client_tcp_port
+🌐 Análise de rede (Wireshark)
+
+Filtro:
+
+tcp.port == <porta>
+
+Exemplo:
+
+tcp.port == 57058
+📡 Captura de rede (Windows)
+netsh trace start capture=yes IPv4.Address=(IP_CLIENTE,IP_SERVIDOR) tracefile=c:\temp\trace.etl
+
+Finalizar:
+
+netsh trace stop
+
+Converter:
+
+etl2pcapng.exe trace.etl trace.pcapng
+⚠️ Limitações
+
+O SQL Server NÃO expõe:
+
+Pacotes TCP individuais
+
+Retransmissions
+
+Packet loss
+
+Para isso, utilize:
+
+Wireshark
+
+netsh trace
+
+ETW
+
+🔥 Cenários suportados
+
+Troubleshooting de INSERT lento
+
+Problemas de CDC / DataHub
+
+ASYNC_NETWORK_IO
+
+Lentidão intermitente de aplicação
+
+Diagnóstico com Microsoft Support
+
+🧠 Dicas
+
+Combine com Query Store para identificar queries críticas
+
+Combine com Wireshark para validar retransmission
+
+Combine com waits para identificar gargalo real
+
