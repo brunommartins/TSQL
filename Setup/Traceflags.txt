@@ -1,0 +1,4 @@
+Os dois primeiros, do APC, ainda são recomendados no 2022, só estou confirmando aqui, mas parece que o APC muda no 2025 e o comportamento dos dois já é default, acredito que sim então não vai mais precisar. O TF7745 do query store, para não esperar o flush antes do shutdown, ainda é necessário e não deve mudar no 2025. Já o TF4199 que habilita os fixes, no caso de vocês com a compatibilidade do banco já atual, não seria mais necessário.
+Parece que é só o TF12618, que vai ser default. [Automatic Plan Correction (APC) Behavioral Change
+SQL Server now automatically detects plan regressions and applies FORCE_LAST_GOOD_PLAN to correct them.
+The regression detection model previously enabled by Trace Flag 12618 is now on by default, making automatic tuning more proactive and effective without manual intervention.]
