@@ -1,0 +1,37 @@
+
+Get-VirtualDisk SQLDiskData | fl Size,NumberOfColumns,ProvisioningType
+# 1. Storage Pools existentes
+Write-Host "=== STORAGE POOLS ===" -ForegroundColor Cyan
+Get-StoragePool | Where-Object IsPrimordial -eq $false | 
+    Select-Object FriendlyName, OperationalStatus, HealthStatus, ResiliencySettingNameDefault,
+        @{N="TotalGB";E={[math]::Round($_.Size/1GB,2)}},
+        @{N="AllocatedGB";E={[math]::Round($_.AllocatedSize/1GB,2)}},
+        @{N="FreeGB";E={[math]::Round(($_.Size - $_.AllocatedSize)/1GB,2)}} |
+    Format-List
+
+# 2. Discos físicos dentro do pool
+Write-Host "=== DISCOS FÍSICOS NO POOL ===" -ForegroundColor Cyan
+Get-StoragePool | Where-Object IsPrimordial -eq $false | 
+    Get-PhysicalDisk |
+    Select-Object FriendlyName, SerialNumber, MediaType, HealthStatus,
+        @{N="SizeGB";E={[math]::Round($_.Size/1GB,2)}},
+        Usage |
+    Format-Table -AutoSize
+
+# 3. Virtual Disks (LUNs criados no pool)
+Write-Host "=== VIRTUAL DISKS ===" -ForegroundColor Cyan
+Get-VirtualDisk |
+    Select-Object FriendlyName, OperationalStatus, HealthStatus,
+        ResiliencySettingName, NumberOfColumns, Interleave,
+        @{N="SizeGB";E={[math]::Round($_.Size/1GB,2)}},
+        @{N="AllocatedGB";E={[math]::Round($_.AllocatedSize/1GB,2)}} |
+    Format-List
+
+# 4. Partições e letras de drive associadas
+Write-Host "=== VOLUMES/PARTIÇÕES ===" -ForegroundColor Cyan
+Get-VirtualDisk | Get-Disk | Get-Partition | Get-Volume |
+    Select-Object DriveLetter, FileSystemLabel, FileSystem,
+        @{N="TotalGB";E={[math]::Round($_.Size/1GB,2)}},
+        @{N="FreeGB";E={[math]::Round($_.SizeRemaining/1GB,2)}},
+        @{N="FreePercent";E={[math]::Round($_.SizeRemaining*100/$_.Size,1)}} |
+    Format-Table -AutoSize
