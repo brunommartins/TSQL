@@ -1,1 +1,8 @@
 	Format-Volume -DriveLetter Y -FileSystem NTFS -AllocationUnitSize 65536 -NewFileSystemLabel diskname -UseLargeFRS;	
+
+
+
+Install-WindowsFeature -Name Failover-Clustering –IncludeManagementTools
+Add-WindowsFeature telnet-client
+Set-TimeZone -Id "E. South America Standard Time"
+Set-NetFirewallProfile -Profile Domain,Public,Private -Enabled False
