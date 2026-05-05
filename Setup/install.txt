@@ -6,3 +6,24 @@ Install-WindowsFeature -Name Failover-Clustering –IncludeManagementTools
 Add-WindowsFeature telnet-client
 Set-TimeZone -Id "E. South America Standard Time"
 Set-NetFirewallProfile -Profile Domain,Public,Private -Enabled False
+
+
+
+Set-Disk -Number 2 -IsReadOnly $false
+Get-Disk –Number 2 | Initialize-Disk –PartitionStyle GPT
+New-Partition –DiskNumber 2 –UseMaximumSize -DriveLetter "Y"
+Get-Partition –Disknumber 2 –PartitionNumber 2 | Format-Volume –FileSystem NTFS –NewFileSystemLabel "SQL_Log" -AllocationUnitSize 65536 -UseLargeFRS –Confirm:$false
+Set-Disk -Number 3 -IsReadOnly $false
+Get-Disk –Number 3 | Initialize-Disk –PartitionStyle GPT
+New-Partition –DiskNumber 3 –UseMaximumSize -DriveLetter "G"
+Get-Partition –Disknumber 3 –PartitionNumber 2 | Format-Volume –FileSystem NTFS –NewFileSystemLabel "SQL_Data" -AllocationUnitSize 65536 -UseLargeFRS –Confirm:$false
+New-Item -ItemType Directory -Path "G:\Data\"  
+New-Item -ItemType Directory -Path "Y:\Log\"  
+New-Item -ItemType Directory -Path "D:\mssql_tempdb\" 
+New-Item -ItemType Directory -Path "G:\Others\JOBLogs\" 
+New-Item -ItemType Directory -Path "G:\Others\DLL\" 
+New-Item -ItemType Directory -Path "G:\Others\XEvents\XE_fail_queries_to_splunk\"  
+New-Item -ItemType Directory -Path "G:\Others\SQLAudit\DDL\"  
+New-Item -ItemType Directory -Path "G:\Others\SQLAudit\DML\"
+New-Item -ItemType Directory -Path "G:\Others\SQLAudit\LOGIN\"
+New-Item -ItemType Directory -Path "G:\Others\SQLAudit\SERVER\"
