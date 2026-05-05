@@ -27,3 +27,27 @@ New-Item -ItemType Directory -Path "G:\Others\SQLAudit\DDL\"
 New-Item -ItemType Directory -Path "G:\Others\SQLAudit\DML\"
 New-Item -ItemType Directory -Path "G:\Others\SQLAudit\LOGIN\"
 New-Item -ItemType Directory -Path "G:\Others\SQLAudit\SERVER\"
+
+
+$fake_diskid = 1
+foreach ($single_disk in Get-Disk | Where-Object { $_.PartitionStyle -eq "RAW" -and $_.Number -gt 1 } | Sort-Object -Property Number)
+{
+    $diskid = $single_disk.Number
+    if ($diskid -gt 4){
+        $fake_diskid = $fake_diskid + 1
+    }  
+    if ($fake_diskid -lt 10){
+        $path = "G:\Data\Data0" + $fake_diskid
+        $label = "SQL_Data0" + $fake_diskid
+    }
+    else{
+        $path = "G:\Data\Data" + $fake_diskid
+        $label = "SQL_Data" + $fake_diskid
+    }
+    New-Item -ItemType Directory -Path $path | Out-Null
+    Set-Disk -Number $diskid -IsReadOnly $false
+    Get-Disk –Number $diskid | Initialize-Disk –PartitionStyle GPT
+    New-Partition –DiskNumber $diskid –UseMaximumSize
+    Add-PartitionAccessPath -DiskNumber $diskid -PartitionNumber 2 –AccessPath $path
+    Get-Partition –Disknumber $diskid –PartitionNumber 2 | Format-Volume –FileSystem NTFS –NewFileSystemLabel $label -AllocationUnitSize 65536 -UseLargeFRS –Confirm:$false
+}
