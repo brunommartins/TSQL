@@ -52,6 +52,8 @@ foreach ($single_disk in Get-Disk | Where-Object { $_.PartitionStyle -eq "RAW" -
     Get-Partition –Disknumber $diskid –PartitionNumber 2 | Format-Volume –FileSystem NTFS –NewFileSystemLabel $label -AllocationUnitSize 65536 -UseLargeFRS –Confirm:$false
 }
 
+sqlcmd.exe -S localhost -Q "EXEC sys.sp_configure N'show advanced options',1;RECONFIGURE WITH OVERRIDE;declare @max_memory int;select @max_memory = (total_physical_memory_kb / 1024) * 0.8 from sys.dm_os_sys_memory;EXEC sys.sp_configure N'max server memory (MB)', @max_memory;RECONFIGURE WITH OVERRIDE;EXEC sys.sp_configure N'backup compression default',1;RECONFIGURE WITH OVERRIDE;EXEC sys.sp_configure N'xp_cmdshell',1;RECONFIGURE WITH OVERRIDE;EXEC msdb.dbo.sp_set_sqlagent_properties @jobhistory_max_rows=-1, @jobhistory_max_rows_per_job=-1;EXEC xp_instance_regwrite N'HKEY_LOCAL_MACHINE', N'Software\Microsoft\MSSQLServer\MSSQLServer', N'ErrorLogSizeInKb', REG_DWORD, 0;EXEC xp_instance_regwrite N'HKEY_LOCAL_MACHINE', N'Software\Microsoft\MSSQLServer\MSSQLServer', N'NumErrorLogs', REG_DWORD, 99;ALTER LOGIN [sa] DISABLE;ALTER DATABASE [model] SET RECOVERY SIMPLE WITH NO_WAIT; exec sp_cycle_errorlog;" 
+
 
 set nocount on;
 declare @service_account varchar(128);
