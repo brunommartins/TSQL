@@ -51,3 +51,16 @@ foreach ($single_disk in Get-Disk | Where-Object { $_.PartitionStyle -eq "RAW" -
     Add-PartitionAccessPath -DiskNumber $diskid -PartitionNumber 2 –AccessPath $path
     Get-Partition –Disknumber $diskid –PartitionNumber 2 | Format-Volume –FileSystem NTFS –NewFileSystemLabel $label -AllocationUnitSize 65536 -UseLargeFRS –Confirm:$false
 }
+
+
+set nocount on;
+declare @service_account varchar(128);
+select top(1) @service_account = service_account 
+from sys.dm_server_services
+where servicename='SQL Server (MSSQLSERVER)';
+select 
+'
+setspn -s MSSQLSvc/'+cast(@@servername as varchar(32))+'.cdtcloud.tecnologia '+@service_account+'
+setspn -s MSSQLSvc/'+cast(@@servername as varchar(32))+'.cdtcloud.tecnologia:1433 '+@service_account+'
+'
+;
