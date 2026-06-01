@@ -11,6 +11,22 @@ ORDER BY
     [open] DESC;
 
 
+SELECT
+    s.host_name,
+    c.client_net_address AS client_ip,
+    COUNT(s.session_id) AS [open]
+FROM sys.dm_exec_sessions s
+LEFT JOIN sys.dm_exec_connections c
+    ON c.session_id = s.session_id
+WHERE
+    s.is_user_process = 1
+GROUP BY
+    s.host_name,
+    c.client_net_address
+ORDER BY
+    [open] DESC;
+
+
 SELECT 
     s.host_name,
     COUNT(*) AS session_count
