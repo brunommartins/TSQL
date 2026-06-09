@@ -1,0 +1,24 @@
+$Start = Get-Date "2026-06-08 15:00:00"
+$End   = Get-Date "2026-06-08 15:30:00"
+
+Get-WinEvent -FilterHashtable @{
+    LogName   = 'Application'
+    StartTime = $Start
+    EndTime   = $End
+} | Where-Object {
+    $_.ProviderName -match 'VSS|SQLWriter|MSSQL|SQLVDI|IBM|SPP|Spectrum|Tivoli'
+} | Select-Object TimeCreated, ProviderName, Id, LevelDisplayName, Message |
+Format-List
+
+
+$Start = Get-Date "2026-06-08 15:00:00"
+$End   = Get-Date "2026-06-08 15:30:00"
+
+Get-WinEvent -FilterHashtable @{
+    LogName   = 'System'
+    StartTime = $Start
+    EndTime   = $End
+} | Where-Object {
+    $_.ProviderName -match 'VSS|VolSnap|Disk|Ntfs|stor|partmgr|IBM|SPP|Spectrum|Tivoli'
+} | Select-Object TimeCreated, ProviderName, Id, LevelDisplayName, Message |
+Format-List
