@@ -22,3 +22,54 @@ Get-WinEvent -FilterHashtable @{
     $_.ProviderName -match 'VSS|VolSnap|Disk|Ntfs|stor|partmgr|IBM|SPP|Spectrum|Tivoli'
 } | Select-Object TimeCreated, ProviderName, Id, LevelDisplayName, Message |
 Format-List
+
+
+
+******************************************************************************
+
+$Inicio = Get-Date '2026-06-11 00:15:00'
+$Fim    = Get-Date '2026-06-11 01:00:00'
+
+$Logs = @(
+    'System',
+    'Application',
+    'Microsoft-Windows-FailoverClustering/Operational'
+)
+
+$Eventos = foreach ($Log in $Logs) {
+    try {
+        Get-WinEvent -FilterHashtable @{
+            LogName   = $Log
+            StartTime = $Inicio
+            EndTime   = $Fim
+        } -ErrorAction Stop |
+        Where-Object {
+            (
+                $_.LevelDisplayName -in @('Critical', 'Error', 'Warning') -or
+                $_.ProviderName -match 'FailoverClustering|MSSQL|SQLSERVERAGENT|SQLAgent' -or
+                $_.Message -match '|lease|quorum|heartbeat|health check|PRIMARY|SECONDARY|failover|offline|failed'
+            )
+        } |
+        Select-Object @{
+            Name       = 'Log'
+            Expression = { $Log }
+        }, TimeCreated, ProviderName, Id, LevelDisplayName, Message
+    }
+    catch {
+        Write-Warning "Falha ao consultar o log $Log`: $($_.Exception.Message)"
+    }
+}
+
+$Eventos |
+    Sort-Object TimeCreated |
+    Format-List
+
+
+    New-Item -Path 'D:\Temp' -ItemType Directory -Force | Out-Null
+
+$Eventos |
+    Sort-Object TimeCreated |
+    Export-Csv `
+        -Path 'D:\Temp\Eventos_Failover_PVTDB40.csv' `
+        -NoTypeInformation `
+        -Encoding UTF8
