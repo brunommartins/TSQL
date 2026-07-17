@@ -1,0 +1,164 @@
+Import-Module FailoverClusters -ErrorAction Stop
+
+$targets = foreach ($group in Get-ClusterGroup) {
+
+    $resources = @($group | Get-ClusterResource)
+
+    $hasAG = $resources |
+        Where-Object {
+            $_.ResourceType -eq "SQL Server Availability Group"
+        }
+
+    if (-not $hasAG) {
+        continue
+    }
+
+    $ipResources = @(
+        $resources |
+            Where-Object {
+                $_.ResourceType -eq "IP Address"
+            }
+    )
+
+    $onlineIPs = @(
+        $ipResources |
+            Where-Object {
+                $_.State -eq "Online"
+            }
+    )
+
+    if ($onlineIPs.Count -eq 0) {
+        continue
+    }
+
+    foreach ($ipResource in $ipResources) {
+
+        if ($ipResource.State -ne "Failed") {
+            continue
+        }
+
+        $params = @($ipResource | Get-ClusterParameter)
+
+        [PSCustomObject]@{
+            Cluster      = (Get-Cluster).Name
+            GroupName    = $group.Name
+            ResourceName = $ipResource.Name
+            IPAddress    = ($params | Where-Object Name -eq "Address").Value
+            Network      = ($params | Where-Object Name -eq "Network").Value
+            State        = $ipResource.State
+            OnlineIPs    = (
+                $onlineIPs | ForEach-Object {
+                    $onlineParams = @($_ | Get-ClusterParameter)
+                    ($onlineParams | Where-Object Name -eq "Address").Value
+                }
+            ) -join ", "
+        }
+    }
+}
+
+$targets |
+    Sort-Object GroupName, IPAddress |
+    Format-Table -AutoSize
+
+
+
+
+    foreach ($target in $targets) {
+
+    Write-Host ""
+    Write-Host "==============================================================" -ForegroundColor Cyan
+    Write-Host "Cluster        : $($target.Cluster)"
+    Write-Host "Grupo          : $($target.GroupName)"
+    Write-Host "Recurso        : $($target.ResourceName)"
+    Write-Host "IP a remover   : $($target.IPAddress)" -ForegroundColor Red
+    Write-Host "Estado         : $($target.State)"
+    Write-Host "IPs Online     : $($target.OnlineIPs)" -ForegroundColor Green
+    Write-Host "==============================================================" -ForegroundColor Cyan
+
+    $answer = Read-Host "Confirma a remoção do IP $($target.IPAddress)? (Y/N)"
+
+    if ($answer.ToUpper() -ne "Y") {
+        Write-Host "Remoção cancelada para o IP $($target.IPAddress)." -ForegroundColor Yellow
+        continue
+    }
+
+    try {
+        # Recarrega o grupo e os recursos no momento da execução
+        $group = Get-ClusterGroup -Name $target.GroupName -ErrorAction Stop
+
+        $groupResources = @(
+            $group | Get-ClusterResource
+        )
+
+        $resource = $groupResources |
+            Where-Object {
+                $_.Name -eq $target.ResourceName -and
+                $_.ResourceType -eq "IP Address"
+            } |
+            Select-Object -First 1
+
+        if ($null -eq $resource) {
+            throw "O recurso '$($target.ResourceName)' não foi encontrado no grupo."
+        }
+
+        # Confirma novamente que continua em Failed
+        if ($resource.State -ne "Failed") {
+            throw "O recurso não está mais em Failed. Estado atual: $($resource.State)."
+        }
+
+        # Confirma que existe outro IP Online no mesmo grupo
+        $onlineIPs = @(
+            $groupResources |
+                Where-Object {
+                    $_.ResourceType -eq "IP Address" -and
+                    $_.State -eq "Online" -and
+                    $_.Name -ne $resource.Name
+                }
+        )
+
+        if ($onlineIPs.Count -eq 0) {
+            throw "Não existe outro recurso de IP Online no grupo. Remoção cancelada."
+        }
+
+        # Localiza os recursos de Network Name
+        $networkNames = @(
+            $groupResources |
+                Where-Object {
+                    $_.ResourceType -eq "Network Name"
+                }
+        )
+
+        foreach ($networkName in $networkNames) {
+
+            $dependencies = @(
+                Get-ClusterResourceDependency `
+                    -Resource $networkName.Name `
+                    -ErrorAction Stop
+            )
+
+            if ($dependencies.Name -contains $resource.Name) {
+
+                Write-Host "Removendo dependência:" -ForegroundColor Yellow
+                Write-Host "$($networkName.Name) -> $($resource.Name)"
+
+                Remove-ClusterResourceDependency `
+                    -Resource $networkName.Name `
+                    -Provider $resource.Name `
+                    -Confirm:$false `
+                    -ErrorAction Stop
+            }
+        }
+
+        Write-Host "Removendo recurso de IP: $($resource.Name)" -ForegroundColor Yellow
+
+        Remove-ClusterResource `
+            -InputObject $resource `
+            -Force `
+            -ErrorAction Stop
+
+        Write-Host "IP removido com sucesso: $($target.IPAddress)" -ForegroundColor Green
+    }
+    catch {
+        Write-Warning "Falha ao remover $($target.IPAddress): $($_.Exception.Message)"
+    }
+}
